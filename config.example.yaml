@@ -1,0 +1,32 @@
+app:
+  sync_interval: 5m
+  username_replacements:
+    - from: "@acme.com"
+      to: ""
+    - from: "@"
+      to: ":"
+  groupname_replacements:
+    - from: "|all"
+      to: ""
+  remove_limit: 10
+  ban_before_remove_duration: 168h # 7d
+
+azure:
+  tenant: "acme.onmicrosoft.com"
+  client_id: "abcdefgh-a000-b111-c222-abcdef123456"
+  timeout: 1s
+  users_filter: "(accountEnabled eq true) and (userType eq 'Member')"
+  groups_filter: "displayName -ne ''"
+  groups_display_name_suffix_post_filter: ".dev"
+
+ytsaurus:
+  proxy: localhost:10110
+  apply_user_changes: true
+  apply_group_changes: true
+  apply_member_changes: true
+  timeout: 1s
+  log_level: DEBUG
+
+logging:
+  level: WARN
+  is_production: true

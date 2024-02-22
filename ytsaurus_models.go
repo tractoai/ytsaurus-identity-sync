@@ -22,8 +22,8 @@ func (u YtsaurusUser) GetSourceAttributeName() string {
 }
 
 // IsManuallyManaged true if user doesn't have @azure attribute (system or manually created user).
-func (u YtsaurusUser) IsManuallyManaged() bool {
-	return u.SourceUser == nil
+func (u YtsaurusUser) IsManuallyManaged(sourceType SourceType) bool {
+	return u.SourceUser == nil || u.SourceUser.GetSourceType() != sourceType
 }
 
 func (u YtsaurusUser) IsBanned() bool {
@@ -54,8 +54,8 @@ func (g YtsaurusGroup) GetSourceAttributeName() string {
 }
 
 // IsManuallyManaged true if group doesn't have @azure attribute (system or manually created group).
-func (g YtsaurusGroup) IsManuallyManaged() bool {
-	return g.SourceGroup == nil
+func (g YtsaurusGroup) IsManuallyManaged(sourceType SourceType) bool {
+	return g.SourceGroup == nil || g.SourceGroup.GetSourceType() != sourceType
 }
 
 type YtsaurusGroupWithMembers struct {

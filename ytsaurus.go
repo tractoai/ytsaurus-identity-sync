@@ -75,7 +75,7 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 	}, nil
 }
 
-func (y *Ytsaurus) GetUsers() ([]YtsaurusUser, error) {
+func (y *Ytsaurus) GetUsers(sourceType SourceType) ([]YtsaurusUser, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
@@ -86,7 +86,7 @@ func (y *Ytsaurus) GetUsers() ([]YtsaurusUser, error) {
 	var managedUsers []YtsaurusUser
 	for _, user := range users {
 		y.maybePrintExtraLogs(user.Username, "get_user", "user", user)
-		if user.IsManuallyManaged() {
+		if user.IsManuallyManaged(sourceType) {
 			continue
 		}
 		managedUsers = append(managedUsers, user)
@@ -195,7 +195,7 @@ func (y *Ytsaurus) BanUser(username string) error {
 	)
 }
 
-func (y *Ytsaurus) GetGroupsWithMembers() ([]YtsaurusGroupWithMembers, error) {
+func (y *Ytsaurus) GetGroupsWithMembers(sourceType SourceType) ([]YtsaurusGroupWithMembers, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
@@ -206,7 +206,7 @@ func (y *Ytsaurus) GetGroupsWithMembers() ([]YtsaurusGroupWithMembers, error) {
 	var managedGroups []YtsaurusGroupWithMembers
 	for _, group := range groups {
 		y.maybePrintExtraLogs(group.Name, "get_group", "group", group)
-		if group.IsManuallyManaged() {
+		if group.IsManuallyManaged(sourceType) {
 			continue
 		}
 		managedGroups = append(managedGroups, group)

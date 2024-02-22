@@ -16,7 +16,7 @@ const (
 	runLocalYtsaurus = false
 )
 
-// TestAppIntegration checks sync with real Source API and local yt
+// TestAppIntegration checks sync with real Azure API and local yt
 // It requires AZURE_CLIENT_SECRET to be set.
 func TestAppIntegration(t *testing.T) {
 	require.NoError(t, os.Setenv(defaultYtsaurusSecretEnvVar, ytDevToken))

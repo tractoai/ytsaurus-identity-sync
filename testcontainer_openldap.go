@@ -34,7 +34,7 @@ func (y *OpenLdapLocal) GetConfig() (*LdapConfig, error) {
 		return nil, err
 	}
 	return &LdapConfig{
-		Address:            connectionString, //"ldap://localhost:1389",
+		Address:            connectionString,
 		BaseDN:             "dc=example,dc=org",
 		BindDN:             "cn=admin,dc=example,dc=org",
 		BindPasswordEnvVar: "LDAP_PASSWORD",

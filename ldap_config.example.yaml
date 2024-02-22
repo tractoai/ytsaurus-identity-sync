@@ -16,7 +16,6 @@ ldap:
   bind_dn: "cn=admin,dc=example,dc=org"
   bind_password_env_var: "LDAP_PASSWORD"
   base_dn: "dc=example,dc=org"
-  timeout: 1s
   users:
     filter: "(&(objectClass=posixAccount)(ou=People))"
     username_attribute_type: "cn"

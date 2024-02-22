@@ -14,6 +14,12 @@ const (
 	AzureSourceType SourceType = "azure"
 )
 
+type Source interface {
+	GetUsers() ([]SourceUser, error)
+	GetGroupsWithMembers() ([]SourceGroupWithMembers, error)
+	GetSourceType() SourceType
+}
+
 type SourceUser interface {
 	GetID() ObjectID
 	GetName() string

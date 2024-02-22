@@ -45,7 +45,7 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 		}
 	}
 
-	ytUsers, err := a.ytsaurus.GetUsers()
+	ytUsers, err := a.ytsaurus.GetUsers(a.source.GetSourceType())
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get YTsaurus users")
 	}
@@ -118,7 +118,7 @@ func (a *App) syncGroups(usersMap map[ObjectID]YtsaurusUser) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get Source groups")
 	}
-	ytGroups, err := a.ytsaurus.GetGroupsWithMembers()
+	ytGroups, err := a.ytsaurus.GetGroupsWithMembers(a.source.GetSourceType())
 	if err != nil {
 		return errors.Wrap(err, "failed to get YTsaurus groups")
 	}

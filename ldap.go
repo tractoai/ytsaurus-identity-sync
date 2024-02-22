@@ -33,6 +33,10 @@ func NewLdap(cfg *LdapConfig, logger appLoggerType) (*Ldap, error) {
 	}, nil
 }
 
+func (source *Ldap) GetSourceType() SourceType {
+	return LdapSourceType
+}
+
 func (source *Ldap) GetUsers() ([]SourceUser, error) {
 	res, err := source.Connection.Search(&ldap.SearchRequest{
 		BaseDN:     source.Config.BaseDN,

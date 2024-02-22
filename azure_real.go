@@ -98,6 +98,10 @@ func handleNil[T any](s *T) T {
 	return result
 }
 
+func (a *AzureReal) GetSourceType() SourceType {
+	return AzureSourceType
+}
+
 func (a *AzureReal) GetUsers() ([]SourceUser, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	defer cancel()

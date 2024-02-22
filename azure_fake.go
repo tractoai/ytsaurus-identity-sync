@@ -17,6 +17,10 @@ func (a *AzureFake) setGroups(groups []SourceGroupWithMembers) {
 	a.groups = groups
 }
 
+func (a *AzureFake) GetSourceType() SourceType {
+	return AzureSourceType
+}
+
 func (a *AzureFake) GetUsers() ([]SourceUser, error) {
 	return a.users, nil
 }

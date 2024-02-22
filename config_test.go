@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"go.ytsaurus.tech/library/go/ptr"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func TestConfig(t *testing.T) {
 	cfg, err := loadConfig(configPath)
 	require.NoError(t, err)
 
-	require.Equal(t, 5*time.Minute, cfg.App.SyncInterval)
+	require.Equal(t, ptr.Duration(5*time.Minute), cfg.App.SyncInterval)
 	require.Equal(t, []ReplacementPair{
 		{From: "@acme.com", To: ""},
 		{From: "@", To: ":"},
@@ -25,8 +26,8 @@ func TestConfig(t *testing.T) {
 	require.Equal(t, []ReplacementPair{
 		{From: "|all", To: ""},
 	}, cfg.App.GroupnameReplacements)
-	require.Equal(t, 10, cfg.App.RemoveLimit)
-	require.Equal(t, 7*24*time.Hour, cfg.App.BanBeforeRemoveDuration)
+	require.Equal(t, ptr.Int(10), cfg.App.RemoveLimit)
+	require.Equal(t, ptr.Duration(7*24*time.Hour), cfg.App.BanBeforeRemoveDuration)
 
 	require.Equal(t, "acme.onmicrosoft.com", cfg.Azure.Tenant)
 	require.Equal(t, "abcdefgh-a000-b111-c222-abcdef123456", cfg.Azure.ClientID)
@@ -45,7 +46,7 @@ func TestConfig(t *testing.T) {
 	require.Equal(t, "WARN", cfg.Logging.Level)
 	require.Equal(t, true, cfg.Logging.IsProduction)
 
-	logger, err := configureLogger(cfg.Logging)
+	logger, err := configureLogger(&cfg.Logging)
 	require.NoError(t, err)
 	logger.Debugw("test logging message", "key", "val")
 }

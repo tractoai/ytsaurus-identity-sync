@@ -14,7 +14,7 @@ import (
 //go:embed config.local.yaml
 var _localConfig embed.FS
 
-// TestPrintAzureUsersIntegration tests nothing, but can be used to debug Azure users retrieved from ms graph api.
+// TestPrintAzureUsersIntegration tests nothing, but can be used to debug Source users retrieved from ms graph api.
 // In particular, it can be used to tune userFilter for production use.
 // It requires AZURE_CLIENT_SECRET env var and `config.local.yaml` file (which is .gitignored).
 func TestPrintAzureUsersIntegration(t *testing.T) {
@@ -79,7 +79,7 @@ func TestPrintAzureUsersIntegration(t *testing.T) {
 	require.NotEmpty(t, usersRaw)
 }
 
-// TestPrintAzureGroupsIntegration tests nothing, but can be used to debug Azure groups retrieved from ms graph api.
+// TestPrintAzureGroupsIntegration tests nothing, but can be used to debug Source groups retrieved from ms graph api.
 // In particular, it can be used to tune groupsFilter for production use.
 // It requires AZURE_CLIENT_SECRET env var and `config.local.yaml` file (which is .gitignored).
 func TestPrintAzureGroupsIntegrationRaw(t *testing.T) {

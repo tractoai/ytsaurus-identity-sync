@@ -109,12 +109,13 @@ func (y *Ytsaurus) CreateUser(user YtsaurusUser) error {
 	defer cancel()
 
 	y.maybePrintExtraLogs(user.Username, "create_user", "user", user)
+
 	return doCreateYtsaurusUser(
 		ctx,
 		y.client,
 		user.Username,
 		map[string]any{
-			"azure": buildUserAzureAttributeValue(user),
+			user.GetSourceAttributeName(): user.SourceUser,
 		},
 	)
 }
@@ -233,7 +234,7 @@ func (y *Ytsaurus) CreateGroup(group YtsaurusGroup) error {
 		y.client,
 		group.Name,
 		map[string]any{
-			"azure": buildGroupAzureAttributeValue(group),
+			group.GetSourceAttributeName(): group.SourceGroup,
 		},
 	)
 }
@@ -332,12 +333,17 @@ func (y *Ytsaurus) isUserManaged(username string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	attrExists, err := y.client.NodeExists(
+	attrAzureExists, err := y.client.NodeExists(
 		ctx,
 		ypath.Path("//sys/users/"+username+"/@azure"),
 		nil,
 	)
-	return attrExists, err
+	attrSourceExists, err := y.client.NodeExists(
+		ctx,
+		ypath.Path("//sys/users/"+username+"/@source"),
+		nil,
+	)
+	return attrAzureExists || attrSourceExists, err
 }
 
 func (y *Ytsaurus) ensureUserManaged(username string) error {
@@ -355,12 +361,18 @@ func (y *Ytsaurus) isGroupManaged(name string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	attrExists, err := y.client.NodeExists(
+	attrAzureExists, err := y.client.NodeExists(
 		ctx,
 		ypath.Path("//sys/groups/"+name+"/@azure"),
 		nil,
 	)
-	return attrExists, err
+	attrSourceExists, err := y.client.NodeExists(
+		ctx,
+		ypath.Path("//sys/groups/"+name+"/@source"),
+		nil,
+	)
+
+	return attrAzureExists || attrSourceExists, err
 }
 
 func (y *Ytsaurus) ensureGroupManaged(groupname string) error {

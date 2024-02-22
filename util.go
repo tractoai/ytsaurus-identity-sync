@@ -12,7 +12,10 @@ import (
 )
 
 const (
-	appTimeFormat = "2006-01-02T15:04:05Z0700"
+	appTimeFormat            = "2006-01-02T15:04:05Z0700"
+	defaultAzureTimeout      = 3 * time.Second
+	defaultAzureSecretEnvVar = "AZURE_CLIENT_SECRET"
+	defaultAppRemoveLimit    = 10
 )
 
 type appLoggerType = *zap.SugaredLogger

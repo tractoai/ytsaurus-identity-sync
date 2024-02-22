@@ -1,26 +1,26 @@
 package main
 
 type AzureFake struct {
-	users  []AzureUser
-	groups []AzureGroupWithMembers
+	users  []SourceUser
+	groups []SourceGroupWithMembers
 }
 
 func NewAzureFake() *AzureFake {
 	return &AzureFake{}
 }
 
-func (a *AzureFake) setUsers(users []AzureUser) {
+func (a *AzureFake) setUsers(users []SourceUser) {
 	a.users = users
 }
 
-func (a *AzureFake) setGroups(groups []AzureGroupWithMembers) {
+func (a *AzureFake) setGroups(groups []SourceGroupWithMembers) {
 	a.groups = groups
 }
 
-func (a *AzureFake) GetUsers() ([]AzureUser, error) {
+func (a *AzureFake) GetUsers() ([]SourceUser, error) {
 	return a.users, nil
 }
 
-func (a *AzureFake) GetGroupsWithMembers() ([]AzureGroupWithMembers, error) {
+func (a *AzureFake) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 	return a.groups, nil
 }

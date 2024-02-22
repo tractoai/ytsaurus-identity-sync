@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-
 	"github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -36,7 +35,7 @@ func run(configFilePath string) error {
 		return errors.Wrapf(err, "failed to load config %s", configFilePath)
 	}
 
-	logger, err := configureLogger(cfg.Logging)
+	logger, err := configureLogger(&cfg.Logging)
 	if err != nil {
 		return errors.Wrapf(err, "failed to configure logging %+v", cfg.Logging)
 	}

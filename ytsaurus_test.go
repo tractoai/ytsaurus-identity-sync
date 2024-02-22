@@ -41,15 +41,24 @@ func TestUpdateUserFirstName(t *testing.T) {
 	defer func() { require.NoError(t, ytLocal.Stop()) }()
 	yt := getYtsaurus(t, ytLocal)
 
+	const azureId = "fake-az-id-old"
+
 	managedOleg := YtsaurusUser{
-		Username:  "oleg",
-		AzureID:   "fake-az-id-oleg",
-		FirstName: "Lego",
+		Username: "oleg",
+		SourceUser: AzureUser{
+			AzureID:   azureId,
+			FirstName: "Lego",
+		},
 	}
 	err := yt.CreateUser(managedOleg)
 	require.NoError(t, err)
 
-	managedOleg.FirstName = "Oleg"
+	updateSourceUser := AzureUser{
+		AzureID:   azureId,
+		FirstName: "Oleg",
+	}
+	managedOleg.SourceUser = updateSourceUser
+
 	updErr := yt.UpdateUser(managedOleg.Username, managedOleg)
 
 	ytClient, err := ytLocal.GetClient()
@@ -79,15 +88,19 @@ func TestGroups(t *testing.T) {
 
 	managedOleg := YtsaurusUser{
 		Username: "oleg",
-		AzureID:  "fake-az-id-oleg",
+		SourceUser: AzureUser{
+			AzureID: "fake-az-id-oleg",
+		},
 	}
 	err = yt.CreateUser(managedOleg)
 	require.NoError(t, err)
 
 	managedOlegsGroup := YtsaurusGroup{
-		Name:        "olegs",
-		AzureID:     "fake-az-id-olegs",
-		DisplayName: "This is group is for Olegs only",
+		Name: "olegs",
+		SourceGroup: AzureGroup{
+			AzureID:     "fake-az-id-olegs",
+			DisplayName: "This is group is for Olegs only",
+		},
 	}
 	err = yt.CreateGroup(managedOlegsGroup)
 	require.NoError(t, err)
@@ -102,9 +115,11 @@ func TestGroups(t *testing.T) {
 	require.Equal(t, []YtsaurusGroupWithMembers{
 		{
 			YtsaurusGroup: YtsaurusGroup{
-				Name:        managedOlegsGroup.Name,
-				AzureID:     managedOlegsGroup.AzureID,
-				DisplayName: managedOlegsGroup.DisplayName,
+				Name: managedOlegsGroup.Name,
+				SourceGroup: AzureGroup{
+					AzureID:     managedOlegsGroup.SourceGroup.(AzureGroup).AzureID,
+					DisplayName: managedOlegsGroup.SourceGroup.(AzureGroup).DisplayName,
+				},
 			},
 			Members: members,
 		},
@@ -118,9 +133,11 @@ func TestGroups(t *testing.T) {
 	require.Equal(t, []YtsaurusGroupWithMembers{
 		{
 			YtsaurusGroup: YtsaurusGroup{
-				Name:        managedOlegsGroup.Name,
-				AzureID:     managedOlegsGroup.AzureID,
-				DisplayName: managedOlegsGroup.DisplayName,
+				Name: managedOlegsGroup.Name,
+				SourceGroup: AzureGroup{
+					AzureID:     managedOlegsGroup.SourceGroup.(AzureGroup).AzureID,
+					DisplayName: managedOlegsGroup.SourceGroup.(AzureGroup).DisplayName,
+				},
 			},
 			Members: NewStringSet(),
 		},

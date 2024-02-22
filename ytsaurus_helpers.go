@@ -14,10 +14,11 @@ import (
 
 func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUser, error) {
 	type YtsaurusUserResponse struct {
-		Name        string            `yson:",value"`
-		Azure       map[string]string `yson:"azure,attr"`
-		Banned      bool              `yson:"banned,attr"`
-		BannedSince string            `yson:"banned_since,attr"`
+		Name        string         `yson:",value"`
+		Azure       *AzureUser     `yson:"azure,attr"`
+		Source      map[string]any `yson:"source,attr"`
+		Banned      bool           `yson:"banned,attr"`
+		BannedSince string         `yson:"banned_since,attr"`
 	}
 
 	var response []YtsaurusUserResponse
@@ -30,6 +31,7 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 				"azure",
 				"banned",
 				"banned_since",
+				"source",
 			},
 		},
 	)
@@ -46,15 +48,20 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 				return nil, errors.Wrapf(err, "failed to parse @banned_since. %v", ytUser)
 			}
 		}
+		var sourceUser SourceUser
+		if ytUser.Azure != nil {
+			sourceUser = *ytUser.Azure
+		} else if ytUser.Source != nil {
+			sourceUser, err = NewSourceUser(ytUser.Source)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to create source user. %v", ytUser)
+			}
+		}
+
 		users = append(users, YtsaurusUser{
-			Username:      ytUser.Name,
-			AzureID:       ytUser.Azure["id"],
-			PrincipalName: ytUser.Azure["principal_name"],
-			Email:         ytUser.Azure["email"],
-			FirstName:     ytUser.Azure["first_name"],
-			LastName:      ytUser.Azure["last_name"],
-			DisplayName:   ytUser.Azure["display_name"],
-			BannedSince:   bannedSince,
+			Username:    ytUser.Name,
+			SourceUser:  sourceUser,
+			BannedSince: bannedSince,
 		})
 	}
 	return users, nil
@@ -62,9 +69,10 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 
 func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client) ([]YtsaurusGroupWithMembers, error) {
 	type YtsaurusGroupReponse struct {
-		Name    string            `yson:",value"`
-		Azure   map[string]string `yson:"azure,attr"`
-		Members []string          `yson:"members,attr"`
+		Name    string         `yson:",value"`
+		Azure   *AzureGroup    `yson:"azure,attr"`
+		Source  map[string]any `yson:"source,attr"`
+		Members []string       `yson:"members,attr"`
 	}
 
 	var response []YtsaurusGroupReponse
@@ -73,29 +81,39 @@ func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client) ([
 		ypath.Path("//sys/groups"),
 		&response,
 		&yt.ListNodeOptions{
-			Attributes: []string{"members", "azure"},
+			Attributes: []string{"members", "azure", "source"},
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	var users []YtsaurusGroupWithMembers
+	var groups []YtsaurusGroupWithMembers
 	for _, ytGroup := range response {
 		members := NewStringSet()
 		for _, m := range ytGroup.Members {
 			members.Add(m)
 		}
-		users = append(users, YtsaurusGroupWithMembers{
+
+		var sourceGroup SourceGroup
+		if ytGroup.Azure != nil {
+			sourceGroup = *ytGroup.Azure
+		} else if ytGroup.Source != nil {
+			sourceGroup, err = NewSourceGroup(ytGroup.Source)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to create source group. %v", ytGroup)
+			}
+		}
+
+		groups = append(groups, YtsaurusGroupWithMembers{
 			YtsaurusGroup: YtsaurusGroup{
 				Name:        ytGroup.Name,
-				AzureID:     ytGroup.Azure["id"],
-				DisplayName: ytGroup.Azure["display_name"],
+				SourceGroup: sourceGroup,
 			},
 			Members: members,
 		})
 	}
-	return users, nil
+	return groups, nil
 }
 
 func doCreateYtsaurusUser(ctx context.Context, client yt.Client, username string, attrs map[string]any) error {
@@ -142,48 +160,27 @@ func doRemoveMemberYtsaurusGroup(ctx context.Context, client yt.Client, username
 	)
 }
 
-func buildUserAzureAttributeValue(user YtsaurusUser) map[string]string {
-	return map[string]string{
-		"id":             user.AzureID,
-		"email":          user.Email,
-		"principal_name": user.PrincipalName,
-		"first_name":     user.FirstName,
-		"last_name":      user.LastName,
-		"display_name":   user.DisplayName,
-	}
-}
-
 func buildUserAttributes(user YtsaurusUser) map[string]any {
 	return map[string]any{
-		"azure":        buildUserAzureAttributeValue(user),
-		"name":         user.Username,
-		"banned_since": user.BannedSinceString(),
-		"banned":       user.IsBanned(),
-	}
-}
-
-func buildGroupAzureAttributeValue(group YtsaurusGroup) map[string]string {
-	return map[string]string{
-		"id":           group.AzureID,
-		"display_name": group.DisplayName,
+		"name":                        user.Username,
+		"banned_since":                user.BannedSinceString(),
+		"banned":                      user.IsBanned(),
+		user.GetSourceAttributeName(): user.SourceUser,
 	}
 }
 
 func buildGroupAttributes(group YtsaurusGroup) map[string]any {
 	return map[string]any{
-		"azure": map[string]string{
-			"id":           group.AzureID,
-			"display_name": group.DisplayName,
-		},
-		"name": group.Name,
+		group.GetSourceAttributeName(): group.SourceGroup,
+		"name":                         group.Name,
 	}
 }
 
 // nolint: unused
-func doSetAzureAttributeForYtsaurusUser(ctx context.Context, client yt.Client, username string, attrValue map[string]string) error {
+func doSetAzureAttributeForYtsaurusUser(ctx context.Context, client yt.Client, username string, attrName string, attrValue any) error {
 	return client.SetNode(
 		ctx,
-		ypath.Path("//sys/users/"+username+"/@azure"),
+		ypath.Path("//sys/users/"+username+"/@"+attrName),
 		attrValue,
 		nil,
 	)
@@ -210,10 +207,16 @@ func doSetAttributesForYtsaurusUser(ctx context.Context, client yt.Client, usern
 }
 
 // nolint: unused
-func doSetAzureAttributeForYtsaurusGroup(ctx context.Context, client yt.Client, groupname string, attrValue map[string]string) error {
+func doSetAzureAttributeForYtsaurusGroup(
+	ctx context.Context,
+	client yt.Client,
+	groupname string,
+	attrName string,
+	attrValue map[string]string,
+) error {
 	return client.SetNode(
 		ctx,
-		ypath.Path("//sys/groups/"+groupname+"/@azure"),
+		ypath.Path("//sys/groups/"+groupname+"/@"+attrName),
 		attrValue,
 		nil,
 	)

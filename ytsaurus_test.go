@@ -82,7 +82,7 @@ func TestGroups(t *testing.T) {
 	defer func() { require.NoError(t, ytLocal.Stop()) }()
 	yt := getYtsaurus(t, ytLocal)
 
-	groupsInitial, err := yt.GetGroupsWithMembers()
+	groupsInitial, err := yt.GetGroupsWithMembers(AzureSourceType)
 	require.NoError(t, err)
 	require.Empty(t, groupsInitial)
 
@@ -108,7 +108,7 @@ func TestGroups(t *testing.T) {
 	err = yt.AddMember(managedOleg.Username, managedOlegsGroup.Name)
 	require.NoError(t, err)
 
-	groupsAfterCreate, err := yt.GetGroupsWithMembers()
+	groupsAfterCreate, err := yt.GetGroupsWithMembers(AzureSourceType)
 	require.NoError(t, err)
 	members := NewStringSet()
 	members.Add(managedOleg.Username)
@@ -128,7 +128,7 @@ func TestGroups(t *testing.T) {
 	err = yt.RemoveMember(managedOleg.Username, managedOlegsGroup.Name)
 	require.NoError(t, err)
 
-	groupsAfterRemoveMember, err := yt.GetGroupsWithMembers()
+	groupsAfterRemoveMember, err := yt.GetGroupsWithMembers(AzureSourceType)
 	require.NoError(t, err)
 	require.Equal(t, []YtsaurusGroupWithMembers{
 		{
@@ -146,7 +146,7 @@ func TestGroups(t *testing.T) {
 	err = yt.RemoveGroup(managedOlegsGroup.Name)
 	require.NoError(t, err)
 
-	groupsAfterRemove, err := yt.GetGroupsWithMembers()
+	groupsAfterRemove, err := yt.GetGroupsWithMembers(AzureSourceType)
 	require.NoError(t, err)
 	require.Empty(t, groupsAfterRemove)
 

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
+
 	"go.ytsaurus.tech/yt/go/yson"
 )
 
@@ -15,7 +15,7 @@ const (
 )
 
 type SourceUser interface {
-	GetId() ObjectID
+	GetID() ObjectID
 	GetName() string
 	GetSourceType() SourceType
 }
@@ -41,9 +41,8 @@ func NewSourceUser(attributes map[string]any) (SourceUser, error) {
 			return nil, err
 		}
 		return azureUser, nil
-	} else {
-		return nil, errors.New(fmt.Sprintf("Unknown source type: %v", sourceType))
 	}
+	return nil, fmt.Errorf("unknown source type: %v", sourceType)
 }
 
 type BasicSourceUser struct {
@@ -63,7 +62,7 @@ type AzureUser struct {
 	DisplayName string   `yson:"display_name"`
 }
 
-func (user AzureUser) GetId() ObjectID {
+func (user AzureUser) GetID() ObjectID {
 	return user.AzureID
 }
 
@@ -78,13 +77,13 @@ func (user AzureUser) GetSourceType() SourceType {
 type LdapUser struct {
 	BasicSourceUser
 	Username  string `yson:"username"`
-	Uid       string `yson:"uid"`
+	UID       string `yson:"uid"`
 	FirstName string `yson:"first_name"`
 	// TODO(nadya73): Add more fields.
 }
 
-func (user LdapUser) GetId() ObjectID {
-	return user.Uid
+func (user LdapUser) GetID() ObjectID {
+	return user.UID
 }
 
 func (user LdapUser) GetName() string {
@@ -96,7 +95,7 @@ func (user LdapUser) GetSourceType() SourceType {
 }
 
 type SourceGroup interface {
-	GetId() ObjectID
+	GetID() ObjectID
 	GetName() string
 	GetSourceType() SourceType
 }
@@ -126,9 +125,8 @@ func NewSourceGroup(attributes map[string]any) (SourceGroup, error) {
 			return nil, err
 		}
 		return azureGroup, nil
-	} else {
-		return nil, errors.New(fmt.Sprintf("Unknown source type: %v", sourceType))
 	}
+	return nil, fmt.Errorf("unknown source type: %v", sourceType)
 }
 
 type AzureGroup struct {
@@ -141,7 +139,7 @@ type AzureGroup struct {
 	DisplayName string   `yson:"display_name"`
 }
 
-func (ag AzureGroup) GetId() ObjectID {
+func (ag AzureGroup) GetID() ObjectID {
 	return ag.AzureID
 }
 
@@ -158,7 +156,7 @@ type LdapGroup struct {
 	Groupname string `yson:"groupname"`
 }
 
-func (lg LdapGroup) GetId() ObjectID {
+func (lg LdapGroup) GetID() ObjectID {
 	return lg.Groupname
 }
 

@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/go-ldap/ldap/v3"
-	"go.ytsaurus.tech/library/go/ptr"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-ldap/ldap/v3"
+
+	"go.ytsaurus.tech/library/go/ptr"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -41,7 +43,7 @@ type testCase struct {
 	ytGroupsExpected  []YtsaurusGroupWithMembers
 }
 
-func getUserId(name string) string {
+func getUserID(name string) string {
 	switch name {
 	case aliceName:
 		return "1"
@@ -59,7 +61,7 @@ func getSourceUser(name string, sourceType SourceType) SourceUser {
 		return LdapUser{
 			BasicSourceUser: BasicSourceUser{SourceType: LdapSourceType},
 			Username:        fmt.Sprintf("%v@acme.com", name),
-			Uid:             getUserId(name),
+			UID:             getUserID(name),
 			FirstName:       fmt.Sprintf("%v@acme.com-firstname", name),
 		}
 	case AzureSourceType:
@@ -84,7 +86,7 @@ func getUpdatedSourceUser(name string, sourceType SourceType) SourceUser {
 		return LdapUser{
 			BasicSourceUser: ldapSourceUser.BasicSourceUser,
 			Username:        ldapSourceUser.Username,
-			Uid:             ldapSourceUser.Uid,
+			UID:             ldapSourceUser.UID,
 			FirstName:       ldapSourceUser.FirstName + "-updated",
 		}
 	case AzureSourceType:
@@ -331,11 +333,11 @@ func getTestCases(sourceType SourceType) []testCase {
 			sourceGroupsSetUp: []SourceGroupWithMembers{
 				{
 					SourceGroup: getSourceGroup("devs", sourceType),
-					Members:     NewStringSetFromItems(getSourceUser(aliceName, sourceType).GetId()),
+					Members:     NewStringSetFromItems(getSourceUser(aliceName, sourceType).GetID()),
 				},
 				{
 					SourceGroup: getSourceGroup("hq", sourceType),
-					Members:     NewStringSetFromItems(getSourceUser(carolName, sourceType).GetId()),
+					Members:     NewStringSetFromItems(getSourceUser(carolName, sourceType).GetID()),
 				},
 			},
 			ytGroupsExpected: []YtsaurusGroupWithMembers{
@@ -380,8 +382,8 @@ func getTestCases(sourceType SourceType) []testCase {
 				{
 					SourceGroup: getSourceGroup("devs", sourceType),
 					Members: NewStringSetFromItems(
-						getSourceUser(aliceName, sourceType).GetId(),
-						getSourceUser(carolName, sourceType).GetId(),
+						getSourceUser(aliceName, sourceType).GetID(),
+						getSourceUser(carolName, sourceType).GetID(),
 					),
 				},
 			},
@@ -438,8 +440,8 @@ func getTestCases(sourceType SourceType) []testCase {
 					SourceGroup: getUpdatedSourceGroup("devs", sourceType),
 					// Members list are also updated.
 					Members: NewStringSetFromItems(
-						getSourceUser(aliceName, sourceType).GetId(),
-						getSourceUser(carolName, sourceType).GetId(),
+						getSourceUser(aliceName, sourceType).GetID(),
+						getSourceUser(carolName, sourceType).GetID(),
 					),
 				},
 				{
@@ -447,8 +449,8 @@ func getTestCases(sourceType SourceType) []testCase {
 					SourceGroup: getChangedBackwardCompatibleSourceGroup("hq", sourceType),
 					// members also changed
 					Members: NewStringSetFromItems(
-						getSourceUser(aliceName, sourceType).GetId(),
-						getSourceUser(carolName, sourceType).GetId(),
+						getSourceUser(aliceName, sourceType).GetID(),
+						getSourceUser(carolName, sourceType).GetID(),
 					),
 				},
 			},
@@ -692,7 +694,7 @@ func setupLdapObjects(t *testing.T, conn *ldap.Conn, users []SourceUser, groups 
 	for _, user := range users {
 		ldapUser := user.(LdapUser)
 		addRequest := ldap.AddRequest{
-			DN: fmt.Sprintf("uid=%s,ou=People,dc=example,dc=org", user.GetId()),
+			DN: fmt.Sprintf("uid=%s,ou=People,dc=example,dc=org", user.GetID()),
 			Attributes: []ldap.Attribute{
 				{
 					Type: "objectClass",
@@ -708,15 +710,15 @@ func setupLdapObjects(t *testing.T, conn *ldap.Conn, users []SourceUser, groups 
 				},
 				{
 					Type: "uid",
-					Vals: []string{user.GetId()},
+					Vals: []string{user.GetID()},
 				},
 				{
 					Type: "uidNumber",
-					Vals: []string{user.GetId()},
+					Vals: []string{user.GetID()},
 				},
 				{
 					Type: "gidNumber",
-					Vals: []string{user.GetId()},
+					Vals: []string{user.GetID()},
 				},
 				{
 					Type: "givenName",
@@ -724,7 +726,7 @@ func setupLdapObjects(t *testing.T, conn *ldap.Conn, users []SourceUser, groups 
 				},
 				{
 					Type: "homeDirectory",
-					Vals: []string{ldapUser.GetId()},
+					Vals: []string{ldapUser.GetID()},
 				},
 				{
 					Type: "sn",
@@ -735,7 +737,7 @@ func setupLdapObjects(t *testing.T, conn *ldap.Conn, users []SourceUser, groups 
 		require.NoError(t, conn.Add(&addRequest))
 	}
 
-	for groupId, group := range groups {
+	for groupID, group := range groups {
 		ldapGroup := group.SourceGroup.(LdapGroup)
 
 		members := make([]string, 0)
@@ -744,7 +746,7 @@ func setupLdapObjects(t *testing.T, conn *ldap.Conn, users []SourceUser, groups 
 		}
 
 		addRequest := ldap.AddRequest{
-			DN: fmt.Sprintf("cn=%s,ou=Group,dc=example,dc=org", ldapGroup.GetId()),
+			DN: fmt.Sprintf("cn=%s,ou=Group,dc=example,dc=org", ldapGroup.GetID()),
 			Attributes: []ldap.Attribute{
 				{
 					Type: "objectClass",
@@ -756,7 +758,7 @@ func setupLdapObjects(t *testing.T, conn *ldap.Conn, users []SourceUser, groups 
 				},
 				{
 					Type: "gidNumber",
-					Vals: []string{fmt.Sprint(groupId)},
+					Vals: []string{fmt.Sprint(groupID)},
 				},
 				{
 					Type: "memberUid",

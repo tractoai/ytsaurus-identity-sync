@@ -53,6 +53,11 @@ func (g YtsaurusGroup) GetSourceAttributeName() string {
 	return "source"
 }
 
+// IsManuallyManaged true if group doesn't have @azure attribute (system or manually created group).
+func (g YtsaurusGroup) IsManuallyManaged() bool {
+	return g.SourceGroup == nil
+}
+
 type YtsaurusGroupWithMembers struct {
 	YtsaurusGroup
 	// Members is a set of group members' @name attribute.
@@ -66,9 +71,4 @@ func NewEmptyYtsaurusGroupWithMembers(group YtsaurusGroup) YtsaurusGroupWithMemb
 type YtsaurusMembership struct {
 	GroupName string
 	Username  string
-}
-
-// IsManuallyManaged true if group doesn't have @azure attribute (system or manually created group).
-func (u YtsaurusGroup) IsManuallyManaged() bool {
-	return u.SourceGroup == nil
 }

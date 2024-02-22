@@ -41,12 +41,12 @@ func TestUpdateUserFirstName(t *testing.T) {
 	defer func() { require.NoError(t, ytLocal.Stop()) }()
 	yt := getYtsaurus(t, ytLocal)
 
-	const azureId = "fake-az-id-old"
+	const azureID = "fake-az-id-old"
 
 	managedOleg := YtsaurusUser{
 		Username: "oleg",
 		SourceUser: AzureUser{
-			AzureID:   azureId,
+			AzureID:   azureID,
 			FirstName: "Lego",
 		},
 	}
@@ -54,7 +54,7 @@ func TestUpdateUserFirstName(t *testing.T) {
 	require.NoError(t, err)
 
 	updateSourceUser := AzureUser{
-		AzureID:   azureId,
+		AzureID:   azureID,
 		FirstName: "Oleg",
 	}
 	managedOleg.SourceUser = updateSourceUser

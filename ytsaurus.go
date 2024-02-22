@@ -338,12 +338,18 @@ func (y *Ytsaurus) isUserManaged(username string) (bool, error) {
 		ypath.Path("//sys/users/"+username+"/@azure"),
 		nil,
 	)
+	if err != nil {
+		return false, err
+	}
 	attrSourceExists, err := y.client.NodeExists(
 		ctx,
 		ypath.Path("//sys/users/"+username+"/@source"),
 		nil,
 	)
-	return attrAzureExists || attrSourceExists, err
+	if err != nil {
+		return false, err
+	}
+	return attrAzureExists || attrSourceExists, nil
 }
 
 func (y *Ytsaurus) ensureUserManaged(username string) error {
@@ -366,13 +372,19 @@ func (y *Ytsaurus) isGroupManaged(name string) (bool, error) {
 		ypath.Path("//sys/groups/"+name+"/@azure"),
 		nil,
 	)
+	if err != nil {
+		return false, err
+	}
 	attrSourceExists, err := y.client.NodeExists(
 		ctx,
 		ypath.Path("//sys/groups/"+name+"/@source"),
 		nil,
 	)
+	if err != nil {
+		return false, err
+	}
 
-	return attrAzureExists || attrSourceExists, err
+	return attrAzureExists || attrSourceExists, nil
 }
 
 func (y *Ytsaurus) ensureGroupManaged(groupname string) error {

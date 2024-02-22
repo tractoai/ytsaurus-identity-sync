@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"

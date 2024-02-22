@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"errors"
+
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/openldap"
+
 	"go.ytsaurus.tech/library/go/ptr"
 )
 
@@ -39,13 +41,13 @@ func (y *OpenLdapLocal) GetConfig() (*LdapConfig, error) {
 		Users: LdapUsersConfig{
 			Filter:                 "(&(objectClass=posixAccount)(ou=People))",
 			UsernameAttributeType:  "cn",
-			UidAttributeType:       "uid",
+			UIDAttributeType:       "uid",
 			FirstNameAttributeType: ptr.String("givenName"),
 		},
 		Groups: LdapGroupsConfig{
 			Filter:                 "(objectClass=posixGroup)",
 			GroupnameAttributeType: "cn",
-			MemberUidAttributeType: "memberUid",
+			MemberUIDAttributeType: "memberUid",
 		},
 	}, nil
 }

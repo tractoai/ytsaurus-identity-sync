@@ -70,7 +70,7 @@ type LdapUsersConfig struct {
 	// For example, `cn`.
 	UsernameAttributeType string `yaml:"username_attribute_type"`
 	// For example, `uid`.
-	UidAttributeType       string  `yaml:"uid_attribute_type"`
+	UIDAttributeType       string  `yaml:"uid_attribute_type"`
 	FirstNameAttributeType *string `yaml:"first_name_attribute_type"`
 	// A list of usernames for which app will print more debug info in logs.
 	DebugUsernames []string `yaml:"debug_usernames"`
@@ -85,7 +85,7 @@ type LdapGroupsConfig struct {
 	GroupnameAttributeType string `yaml:"groupname_attribute_type"`
 	// An attribute type which will be used for getting group members.
 	// For example, `memberUid`.
-	MemberUidAttributeType string `yaml:"member_uid_attribute_type"`
+	MemberUIDAttributeType string `yaml:"member_uid_attribute_type"`
 
 	// A list of groupnames for which app will print more debug info in logs.
 	DebugGroupnames []string `yaml:"debug_groupnames"`

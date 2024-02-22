@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/pkg/errors"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"k8s.io/utils/clock"
 )

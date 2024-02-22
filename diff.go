@@ -54,10 +54,10 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 	ytUsersMap := make(map[ObjectID]YtsaurusUser)
 
 	for _, user := range sourceUsers {
-		sourceUsersMap[user.GetId()] = user
+		sourceUsersMap[user.GetID()] = user
 	}
 	for _, user := range ytUsers {
-		ytUsersMap[user.SourceUser.GetId()] = user
+		ytUsersMap[user.SourceUser.GetID()] = user
 	}
 
 	diff := a.diffUsers(sourceUsersMap, ytUsersMap)
@@ -80,7 +80,7 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 			removedCount++
 		}
 		// Actualizing user map for group sync later.
-		delete(ytUsersMap, user.SourceUser.GetId())
+		delete(ytUsersMap, user.SourceUser.GetID())
 	}
 	for _, user := range diff.create {
 		err = a.ytsaurus.CreateUser(user)
@@ -89,7 +89,7 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 			a.logger.Errorw("failed to create user", zap.Error(err), "user", user)
 		}
 		// Actualizing user map for group sync later.
-		ytUsersMap[user.SourceUser.GetId()] = user
+		ytUsersMap[user.SourceUser.GetID()] = user
 	}
 	for _, updatedUser := range diff.update {
 		err = a.ytsaurus.UpdateUser(updatedUser.OldUsername, updatedUser.YtsaurusUser)
@@ -98,7 +98,7 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 			a.logger.Errorw("failed to update user", zap.Error(err), "user", updatedUser)
 		}
 		// Actualizing user map for group sync later.
-		ytUsersMap[updatedUser.SourceUser.GetId()] = updatedUser.YtsaurusUser
+		ytUsersMap[updatedUser.SourceUser.GetID()] = updatedUser.YtsaurusUser
 	}
 	a.logger.Infow("Finish syncing users",
 		"created", len(diff.create)-createErrCount,
@@ -207,10 +207,10 @@ func (a *App) diffGroups(
 	ytGroupsWithMembersMap := make(map[ObjectID]YtsaurusGroupWithMembers)
 
 	for _, group := range sourceGroups {
-		sourceGroupsWithMembersMap[group.SourceGroup.GetId()] = group
+		sourceGroupsWithMembersMap[group.SourceGroup.GetID()] = group
 	}
 	for _, group := range ytGroups {
-		ytGroupsWithMembersMap[group.SourceGroup.GetId()] = group
+		ytGroupsWithMembersMap[group.SourceGroup.GetID()] = group
 	}
 
 	// Collecting groups to create (the ones that exist in Source but not in YTsaurus).

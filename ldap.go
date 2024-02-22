@@ -1,9 +1,10 @@
 package main
 
 import (
+	"log"
+
 	"github.com/go-ldap/ldap/v3"
 	"k8s.io/utils/env"
-	"log"
 )
 
 type Ldap struct {
@@ -15,12 +16,17 @@ func NewLdap(cfg *LdapConfig, logger appLoggerType) (*Ldap, error) {
 	conn, err := ldap.DialURL(cfg.Address)
 	if err != nil {
 		log.Fatalf("Failed to connect: %s\n", err)
+		return nil, err
 	}
 
 	_, err = conn.SimpleBind(&ldap.SimpleBindRequest{
 		Username: cfg.BindDN,
 		Password: env.GetString(cfg.BindPasswordEnvVar, "adminpassword"),
 	})
+	if err != nil {
+		log.Fatalf("Failed to bind: %s\n", err)
+		return nil, err
+	}
 	return &Ldap{
 		Connection: conn,
 		Config:     cfg,
@@ -41,7 +47,7 @@ func (source *Ldap) GetUsers() ([]SourceUser, error) {
 	var users []SourceUser
 	for _, entry := range res.Entries {
 		username := entry.GetAttributeValue(source.Config.Users.UsernameAttributeType)
-		uid := entry.GetAttributeValue(source.Config.Users.UidAttributeType)
+		uid := entry.GetAttributeValue(source.Config.Users.UIDAttributeType)
 		var firstName string
 		if source.Config.Users.FirstNameAttributeType != nil {
 			firstName = entry.GetAttributeValue(*source.Config.Users.FirstNameAttributeType)
@@ -49,7 +55,7 @@ func (source *Ldap) GetUsers() ([]SourceUser, error) {
 		users = append(users, LdapUser{
 			BasicSourceUser: BasicSourceUser{SourceType: LdapSourceType},
 			Username:        username,
-			Uid:             uid,
+			UID:             uid,
 			FirstName:       firstName})
 	}
 	return users, nil
@@ -69,7 +75,7 @@ func (source *Ldap) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 	var groups []SourceGroupWithMembers
 	for _, entry := range res.Entries {
 		groupname := entry.GetAttributeValue(source.Config.Groups.GroupnameAttributeType)
-		members := entry.GetAttributeValues(source.Config.Groups.MemberUidAttributeType)
+		members := entry.GetAttributeValues(source.Config.Groups.MemberUIDAttributeType)
 		groups = append(groups, SourceGroupWithMembers{
 			SourceGroup: LdapGroup{
 				BasicSourceGroup: BasicSourceGroup{SourceType: LdapSourceType},

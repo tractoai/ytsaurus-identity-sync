@@ -59,20 +59,18 @@ func getSourceUser(name string, sourceType SourceType) SourceUser {
 	switch sourceType {
 	case LdapSourceType:
 		return LdapUser{
-			BasicSourceUser: BasicSourceUser{SourceType: LdapSourceType},
-			Username:        fmt.Sprintf("%v@acme.com", name),
-			UID:             getUserID(name),
-			FirstName:       fmt.Sprintf("%v@acme.com-firstname", name),
+			Username:  fmt.Sprintf("%v@acme.com", name),
+			UID:       getUserID(name),
+			FirstName: fmt.Sprintf("%v@acme.com-firstname", name),
 		}
 	case AzureSourceType:
 		return AzureUser{
-			BasicSourceUser: BasicSourceUser{SourceType: AzureSourceType},
-			PrincipalName:   fmt.Sprintf("%v@acme.com", name),
-			AzureID:         fmt.Sprintf("fake-az-id-%v", name),
-			Email:           fmt.Sprintf("%v@acme.com", name),
-			FirstName:       fmt.Sprintf("%v@acme.com-firstname", name),
-			LastName:        fmt.Sprintf("%v-lastname", name),
-			DisplayName:     fmt.Sprintf("Henderson, %v (ACME)", name),
+			PrincipalName: fmt.Sprintf("%v@acme.com", name),
+			AzureID:       fmt.Sprintf("fake-az-id-%v", name),
+			Email:         fmt.Sprintf("%v@acme.com", name),
+			FirstName:     fmt.Sprintf("%v@acme.com-firstname", name),
+			LastName:      fmt.Sprintf("%v-lastname", name),
+			DisplayName:   fmt.Sprintf("Henderson, %v (ACME)", name),
 		}
 	}
 	return nil
@@ -84,21 +82,19 @@ func getUpdatedSourceUser(name string, sourceType SourceType) SourceUser {
 	case LdapSourceType:
 		ldapSourceUser := sourceUser.(LdapUser)
 		return LdapUser{
-			BasicSourceUser: ldapSourceUser.BasicSourceUser,
-			Username:        ldapSourceUser.Username,
-			UID:             ldapSourceUser.UID,
-			FirstName:       ldapSourceUser.FirstName + "-updated",
+			Username:  ldapSourceUser.Username,
+			UID:       ldapSourceUser.UID,
+			FirstName: ldapSourceUser.FirstName + "-updated",
 		}
 	case AzureSourceType:
 		azureSourceUser := sourceUser.(AzureUser)
 		return AzureUser{
-			BasicSourceUser: azureSourceUser.BasicSourceUser,
-			PrincipalName:   azureSourceUser.PrincipalName,
-			AzureID:         azureSourceUser.AzureID,
-			Email:           azureSourceUser.Email + "-updated",
-			FirstName:       azureSourceUser.FirstName,
-			LastName:        azureSourceUser.LastName,
-			DisplayName:     azureSourceUser.DisplayName,
+			PrincipalName: azureSourceUser.PrincipalName,
+			AzureID:       azureSourceUser.AzureID,
+			Email:         azureSourceUser.Email + "-updated",
+			FirstName:     azureSourceUser.FirstName,
+			LastName:      azureSourceUser.LastName,
+			DisplayName:   azureSourceUser.DisplayName,
 		}
 	}
 	return nil
@@ -120,15 +116,13 @@ func getSourceGroup(name string, sourceType SourceType) SourceGroup {
 	switch sourceType {
 	case AzureSourceType:
 		return AzureGroup{
-			BasicSourceGroup: BasicSourceGroup{SourceType: AzureSourceType},
-			Identity:         fmt.Sprintf("acme.%v|all", name),
-			AzureID:          fmt.Sprintf("fake-az-acme.%v", name),
-			DisplayName:      fmt.Sprintf("acme.%v|all", name),
+			Identity:    fmt.Sprintf("acme.%v|all", name),
+			AzureID:     fmt.Sprintf("fake-az-acme.%v", name),
+			DisplayName: fmt.Sprintf("acme.%v|all", name),
 		}
 	case LdapSourceType:
 		return LdapGroup{
-			BasicSourceGroup: BasicSourceGroup{SourceType: LdapSourceType},
-			Groupname:        fmt.Sprintf("acme.%v|all", name),
+			Groupname: fmt.Sprintf("acme.%v|all", name),
 		}
 	}
 	return nil
@@ -141,16 +135,14 @@ func getUpdatedSourceGroup(name string, sourceType SourceType) SourceGroup {
 		// TODO(nadya73): add more fields.
 		ldapSourceGroup := sourceGroup.(LdapGroup)
 		return LdapGroup{
-			BasicSourceGroup: ldapSourceGroup.BasicSourceGroup,
-			Groupname:        ldapSourceGroup.Groupname,
+			Groupname: ldapSourceGroup.Groupname,
 		}
 	case AzureSourceType:
 		azureSourceGroup := sourceGroup.(AzureGroup)
 		return AzureGroup{
-			BasicSourceGroup: azureSourceGroup.BasicSourceGroup,
-			Identity:         azureSourceGroup.Identity,
-			AzureID:          azureSourceGroup.AzureID,
-			DisplayName:      azureSourceGroup.DisplayName + "-updated",
+			Identity:    azureSourceGroup.Identity,
+			AzureID:     azureSourceGroup.AzureID,
+			DisplayName: azureSourceGroup.DisplayName + "-updated",
 		}
 	}
 	return nil
@@ -163,10 +155,9 @@ func getChangedBackwardCompatibleSourceGroup(name string, sourceType SourceType)
 	sourceGroup := getSourceGroup(name, sourceType)
 	azureSourceGroup := sourceGroup.(AzureGroup)
 	return AzureGroup{
-		BasicSourceGroup: azureSourceGroup.BasicSourceGroup,
-		Identity:         azureSourceGroup.Identity + "-changed",
-		AzureID:          azureSourceGroup.AzureID,
-		DisplayName:      azureSourceGroup.DisplayName + "-updated",
+		Identity:    azureSourceGroup.Identity + "-changed",
+		AzureID:     azureSourceGroup.AzureID,
+		DisplayName: azureSourceGroup.DisplayName + "-updated",
 	}
 }
 

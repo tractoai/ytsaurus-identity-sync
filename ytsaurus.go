@@ -116,6 +116,7 @@ func (y *Ytsaurus) CreateUser(user YtsaurusUser) error {
 		user.Username,
 		map[string]any{
 			user.GetSourceAttributeName(): user.SourceUser,
+			"source_type":                 user.SourceUser.GetSourceType(),
 		},
 	)
 }
@@ -234,6 +235,7 @@ func (y *Ytsaurus) CreateGroup(group YtsaurusGroup) error {
 		y.client,
 		group.Name,
 		map[string]any{
+			"source_type":                  group.SourceGroup.GetSourceType(),
 			group.GetSourceAttributeName(): group.SourceGroup,
 		},
 	)

@@ -16,6 +16,7 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 	type YtsaurusUserResponse struct {
 		Name        string         `yson:",value"`
 		Azure       *AzureUser     `yson:"azure,attr"`
+		SourceType  *SourceType    `yson:"source_type,attr"`
 		Source      map[string]any `yson:"source,attr"`
 		Banned      bool           `yson:"banned,attr"`
 		BannedSince string         `yson:"banned_since,attr"`
@@ -31,6 +32,7 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 				"azure",
 				"banned",
 				"banned_since",
+				"source_type",
 				"source",
 			},
 		},
@@ -51,8 +53,8 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 		var sourceUser SourceUser
 		if ytUser.Azure != nil {
 			sourceUser = *ytUser.Azure
-		} else if ytUser.Source != nil {
-			sourceUser, err = NewSourceUser(ytUser.Source)
+		} else if ytUser.SourceType != nil && ytUser.Source != nil {
+			sourceUser, err = NewSourceUser(*ytUser.SourceType, ytUser.Source)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to create source user. %v", ytUser)
 			}
@@ -69,10 +71,11 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 
 func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client) ([]YtsaurusGroupWithMembers, error) {
 	type YtsaurusGroupReponse struct {
-		Name    string         `yson:",value"`
-		Azure   *AzureGroup    `yson:"azure,attr"`
-		Source  map[string]any `yson:"source,attr"`
-		Members []string       `yson:"members,attr"`
+		Name       string         `yson:",value"`
+		SourceType *SourceType    `yson:"source_type,attr"`
+		Azure      *AzureGroup    `yson:"azure,attr"`
+		Source     map[string]any `yson:"source,attr"`
+		Members    []string       `yson:"members,attr"`
 	}
 
 	var response []YtsaurusGroupReponse
@@ -81,7 +84,12 @@ func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client) ([
 		ypath.Path("//sys/groups"),
 		&response,
 		&yt.ListNodeOptions{
-			Attributes: []string{"members", "azure", "source"},
+			Attributes: []string{
+				"members",
+				"azure",
+				"source",
+				"source_type",
+			},
 		},
 	)
 	if err != nil {
@@ -98,8 +106,8 @@ func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client) ([
 		var sourceGroup SourceGroup
 		if ytGroup.Azure != nil {
 			sourceGroup = *ytGroup.Azure
-		} else if ytGroup.Source != nil {
-			sourceGroup, err = NewSourceGroup(ytGroup.Source)
+		} else if ytGroup.SourceType != nil && ytGroup.Source != nil {
+			sourceGroup, err = NewSourceGroup(*ytGroup.SourceType, ytGroup.Source)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to create source group. %v", ytGroup)
 			}
@@ -166,6 +174,7 @@ func buildUserAttributes(user YtsaurusUser) map[string]any {
 		"banned_since":                user.BannedSinceString(),
 		"banned":                      user.IsBanned(),
 		user.GetSourceAttributeName(): user.SourceUser,
+		"source_type":                 user.SourceUser.GetSourceType(),
 	}
 }
 
@@ -173,6 +182,7 @@ func buildGroupAttributes(group YtsaurusGroup) map[string]any {
 	return map[string]any{
 		group.GetSourceAttributeName(): group.SourceGroup,
 		"name":                         group.Name,
+		"source_type":                  group.SourceGroup.GetSourceType(),
 	}
 }
 

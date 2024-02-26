@@ -57,10 +57,9 @@ func (source *Ldap) GetUsers() ([]SourceUser, error) {
 			firstName = entry.GetAttributeValue(*source.Config.Users.FirstNameAttributeType)
 		}
 		users = append(users, LdapUser{
-			BasicSourceUser: BasicSourceUser{SourceType: LdapSourceType},
-			Username:        username,
-			UID:             uid,
-			FirstName:       firstName})
+			Username:  username,
+			UID:       uid,
+			FirstName: firstName})
 	}
 	return users, nil
 }
@@ -82,8 +81,7 @@ func (source *Ldap) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 		members := entry.GetAttributeValues(source.Config.Groups.MemberUIDAttributeType)
 		groups = append(groups, SourceGroupWithMembers{
 			SourceGroup: LdapGroup{
-				BasicSourceGroup: BasicSourceGroup{SourceType: LdapSourceType},
-				Groupname:        groupname,
+				Groupname: groupname,
 			},
 			Members: NewStringSetFromItems(members...),
 		})

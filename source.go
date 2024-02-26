@@ -26,21 +26,21 @@ type SourceUser interface {
 	GetSourceType() SourceType
 }
 
-func NewSourceUser(attributes map[string]any) (SourceUser, error) {
+func NewSourceUser(sourceType SourceType, attributes map[string]any) (SourceUser, error) {
 	bytes, err := yson.Marshal(attributes)
 	if err != nil {
 		return nil, err
 	}
 
-	sourceType := attributes["source_type"]
-	if sourceType == string(LdapSourceType) {
+	switch sourceType {
+	case LdapSourceType:
 		var ldapUser LdapUser
 		err = yson.Unmarshal(bytes, &ldapUser)
 		if err != nil {
 			return nil, err
 		}
 		return ldapUser, nil
-	} else if sourceType == string(AzureSourceType) {
+	case AzureSourceType:
 		var azureUser AzureUser
 		err = yson.Unmarshal(bytes, &azureUser)
 		if err != nil {
@@ -51,12 +51,7 @@ func NewSourceUser(attributes map[string]any) (SourceUser, error) {
 	return nil, fmt.Errorf("unknown source type: %v", sourceType)
 }
 
-type BasicSourceUser struct {
-	SourceType SourceType `yson:"source_type"`
-}
-
 type AzureUser struct {
-	BasicSourceUser
 	// PrincipalName is unique human-readable Azure user field, used (possibly with changes)
 	// for the corresponding YTsaurus user's `name` attribute.
 	PrincipalName string `yson:"principal_name"`
@@ -81,7 +76,6 @@ func (user AzureUser) GetSourceType() SourceType {
 }
 
 type LdapUser struct {
-	BasicSourceUser
 	Username  string `yson:"username"`
 	UID       string `yson:"uid"`
 	FirstName string `yson:"first_name"`
@@ -106,25 +100,21 @@ type SourceGroup interface {
 	GetSourceType() SourceType
 }
 
-type BasicSourceGroup struct {
-	SourceType SourceType `yson:"source_type"`
-}
-
-func NewSourceGroup(attributes map[string]any) (SourceGroup, error) {
+func NewSourceGroup(sourceType SourceType, attributes map[string]any) (SourceGroup, error) {
 	bytes, err := yson.Marshal(attributes)
 	if err != nil {
 		return nil, err
 	}
 
-	sourceType := attributes["source_type"]
-	if sourceType == string(LdapSourceType) {
+	switch sourceType {
+	case LdapSourceType:
 		var ldapGroup LdapGroup
 		err = yson.Unmarshal(bytes, &ldapGroup)
 		if err != nil {
 			return nil, err
 		}
 		return ldapGroup, nil
-	} else if sourceType == string(AzureSourceType) {
+	case AzureSourceType:
 		var azureGroup AzureGroup
 		err = yson.Unmarshal(bytes, &azureGroup)
 		if err != nil {
@@ -136,7 +126,6 @@ func NewSourceGroup(attributes map[string]any) (SourceGroup, error) {
 }
 
 type AzureGroup struct {
-	BasicSourceGroup
 	// Identity is unique human-readable Source user field, used (possibly with changes)
 	// for the corresponding YTsaurus user's `name` attribute.
 	Identity string `yson:"identity"`
@@ -158,7 +147,6 @@ func (ag AzureGroup) GetSourceType() SourceType {
 }
 
 type LdapGroup struct {
-	BasicSourceGroup
 	Groupname string `yson:"groupname"`
 }
 

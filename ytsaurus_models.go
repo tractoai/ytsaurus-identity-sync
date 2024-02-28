@@ -15,8 +15,6 @@ func (u YtsaurusUser) GetSourceAttributeName() string {
 	switch u.SourceUser.GetSourceType() {
 	case AzureSourceType:
 		return "azure"
-	case LdapSourceType:
-		return "source"
 	}
 	return "source"
 }
@@ -47,8 +45,6 @@ func (g YtsaurusGroup) GetSourceAttributeName() string {
 	switch g.SourceGroup.GetSourceType() {
 	case AzureSourceType:
 		return "azure"
-	case LdapSourceType:
-		return "source"
 	}
 	return "source"
 }

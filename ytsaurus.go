@@ -31,6 +31,8 @@ type Ytsaurus struct {
 
 	debugUsernames  []string
 	debugGroupnames []string
+
+	sourceAttributeName string
 }
 
 func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveClock) (*Ytsaurus, error) {
@@ -70,8 +72,9 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 		timeout: cfg.Timeout,
 		clock:   clock,
 
-		debugUsernames:  cfg.DebugUsernames,
-		debugGroupnames: cfg.DebugGroupnames,
+		debugUsernames:      cfg.DebugUsernames,
+		debugGroupnames:     cfg.DebugGroupnames,
+		sourceAttributeName: cfg.SourceAttributeName,
 	}, nil
 }
 
@@ -79,7 +82,7 @@ func (y *Ytsaurus) GetUsers(sourceType SourceType) ([]YtsaurusUser, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	users, err := doGetAllYtsaurusUsers(ctx, y.client)
+	users, err := doGetAllYtsaurusUsers(ctx, y.client, y.sourceAttributeName)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get ytsaurus users")
 	}

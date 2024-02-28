@@ -10,7 +10,6 @@ type ObjectID = string
 type SourceType string
 
 const (
-	LdapSourceType  SourceType = "ldap"
 	AzureSourceType SourceType = "azure"
 )
 
@@ -33,13 +32,6 @@ func NewSourceUser(sourceType SourceType, attributes map[string]any) (SourceUser
 	}
 
 	switch sourceType {
-	case LdapSourceType:
-		var ldapUser LdapUser
-		err = yson.Unmarshal(bytes, &ldapUser)
-		if err != nil {
-			return nil, err
-		}
-		return ldapUser, nil
 	case AzureSourceType:
 		var azureUser AzureUser
 		err = yson.Unmarshal(bytes, &azureUser)
@@ -75,25 +67,6 @@ func (user AzureUser) GetSourceType() SourceType {
 	return AzureSourceType
 }
 
-type LdapUser struct {
-	Username  string `yson:"username"`
-	UID       string `yson:"uid"`
-	FirstName string `yson:"first_name"`
-	// TODO(nadya73): Add more fields.
-}
-
-func (user LdapUser) GetID() ObjectID {
-	return user.UID
-}
-
-func (user LdapUser) GetName() string {
-	return user.Username
-}
-
-func (user LdapUser) GetSourceType() SourceType {
-	return LdapSourceType
-}
-
 type SourceGroup interface {
 	GetID() ObjectID
 	GetName() string
@@ -107,13 +80,6 @@ func NewSourceGroup(sourceType SourceType, attributes map[string]any) (SourceGro
 	}
 
 	switch sourceType {
-	case LdapSourceType:
-		var ldapGroup LdapGroup
-		err = yson.Unmarshal(bytes, &ldapGroup)
-		if err != nil {
-			return nil, err
-		}
-		return ldapGroup, nil
 	case AzureSourceType:
 		var azureGroup AzureGroup
 		err = yson.Unmarshal(bytes, &azureGroup)
@@ -144,22 +110,6 @@ func (ag AzureGroup) GetName() string {
 
 func (ag AzureGroup) GetSourceType() SourceType {
 	return AzureSourceType
-}
-
-type LdapGroup struct {
-	Groupname string `yson:"groupname"`
-}
-
-func (lg LdapGroup) GetID() ObjectID {
-	return lg.Groupname
-}
-
-func (lg LdapGroup) GetName() string {
-	return lg.Groupname
-}
-
-func (lg LdapGroup) GetSourceType() SourceType {
-	return LdapSourceType
 }
 
 type SourceGroupWithMembers struct {

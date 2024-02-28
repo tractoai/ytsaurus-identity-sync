@@ -27,24 +27,13 @@ type App struct {
 }
 
 func NewApp(cfg *Config, logger appLoggerType) (*App, error) {
-	if (cfg.Azure == nil) == (cfg.Ldap == nil) {
+	if cfg.Azure == nil {
 		return nil, errors.New("one and only one source should be specified")
 	}
 
-	var err error
-	var source Source
-	if cfg.Azure != nil {
-		source, err = NewAzureReal(cfg.Azure, logger)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if cfg.Ldap != nil {
-		source, err = NewLdap(cfg.Ldap, logger)
-		if err != nil {
-			return nil, err
-		}
+	source, err := NewAzureReal(cfg.Azure, logger)
+	if err != nil {
+		return nil, err
 	}
 
 	return NewAppCustomized(cfg, logger, source, clock.RealClock{})

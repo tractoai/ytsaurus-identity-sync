@@ -9,9 +9,7 @@ type Config struct {
 	Ytsaurus YtsaurusConfig `yaml:"ytsaurus"`
 	Logging  LoggingConfig  `yaml:"logging"`
 
-	// One of them should be specified.
 	Azure *AzureConfig `yaml:"azure,omitempty"`
-	Ldap  *LdapConfig  `yaml:"ldap,omitempty"`
 }
 
 type AppConfig struct {
@@ -19,7 +17,7 @@ type AppConfig struct {
 	// If it is not speciied or value is zero than auto-sync disabled (sync can be invoked only manually).
 	SyncInterval time.Duration `yaml:"sync_interval"`
 
-	// UsernameReplacements is a list of replaces which will be applied to a username for source (Source or Ldap).
+	// UsernameReplacements is a list of replaces which will be applied to a username for source (Azure).
 	// For example, you may use it to strip off characters like @ which are not recommended for use
 	// in usernames as they are required to be escaped in YPath.
 	UsernameReplacements  []ReplacementPair `yaml:"username_replacements"`
@@ -31,7 +29,7 @@ type AppConfig struct {
 	RemoveLimit int `yaml:"remove_limit,omitempty"`
 
 	// BanBeforeRemoveDuration is a duration of a graceful ban before finally removing the user from YTsaurus.
-	// If it is not specified, user will be removed straight after user was found to be missing from source (Source or Ldap).
+	// If it is not specified, user will be removed straight after user was found to be missing from source (Azure).
 	BanBeforeRemoveDuration time.Duration `yaml:"ban_before_remove_duration"`
 }
 
@@ -53,51 +51,11 @@ type AzureConfig struct {
 	GroupsFilter string        `yaml:"groups_filter"`
 	Timeout      time.Duration `yaml:"timeout"`
 
-	// TODO(nadya73): support for ldap also, but with other name.
 	// GroupsDisplayNameSuffixPostFilter applied to the fetched groups display names.
 	GroupsDisplayNameSuffixPostFilter string `yaml:"groups_display_name_suffix_post_filter"`
 
-	// TODO(nadya73): support for ldap also, but with other name.
 	// DebugAzureIDs is a list of ids for which app will print more debug info in logs.
 	DebugAzureIDs []string `yaml:"debug_azure_ids"`
-}
-
-type LdapUsersConfig struct {
-	// A filter for getting users.
-	// For example, `(objectClass=account)`.
-	Filter string `yaml:"filter"`
-	// An attribute type which will be used as @name attribute.
-	// For example, `cn`.
-	UsernameAttributeType string `yaml:"username_attribute_type"`
-	// For example, `uid`.
-	UIDAttributeType       string  `yaml:"uid_attribute_type"`
-	FirstNameAttributeType *string `yaml:"first_name_attribute_type"`
-	// A list of usernames for which app will print more debug info in logs.
-	DebugUsernames []string `yaml:"debug_usernames"`
-}
-
-type LdapGroupsConfig struct {
-	// A filter for getting groups.
-	// For example, `(objectClass=posixGroup)`.
-	Filter string `yaml:"filter"`
-	// An attribute type which will be used as @name attribute.
-	// For example, `cn`.
-	GroupnameAttributeType string `yaml:"groupname_attribute_type"`
-	// An attribute type which will be used for getting group members.
-	// For example, `memberUid`.
-	MemberUIDAttributeType string `yaml:"member_uid_attribute_type"`
-
-	// A list of groupnames for which app will print more debug info in logs.
-	DebugGroupnames []string `yaml:"debug_groupnames"`
-}
-
-type LdapConfig struct {
-	Address            string           `yaml:"address"`
-	BindDN             string           `yaml:"bind_dn"`
-	BindPasswordEnvVar string           `yaml:"bind_password_env_var"`
-	Users              LdapUsersConfig  `yaml:"users"`
-	Groups             LdapGroupsConfig `yaml:"groups"`
-	BaseDN             string           `yaml:"base_dn"`
 }
 
 type YtsaurusConfig struct {
@@ -118,6 +76,8 @@ type YtsaurusConfig struct {
 	DebugUsernames []string `yaml:"debug_usernames"`
 	// DebugGroupnames is a list of YTsaurus groupnames for which app will print more debug info in logs.
 	DebugGroupnames []string `yaml:"debug_groupnames"`
+
+	SourceAttributeName string `yaml:"source_attribute_name"`
 }
 
 type LoggingConfig struct {

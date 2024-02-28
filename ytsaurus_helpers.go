@@ -12,14 +12,21 @@ import (
 
 // Lower level functions for reusing in tests.
 
-func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUser, error) {
+const (
+	bannedSinceAttributeName = "banned_since"
+	bannedAttributeName      = "banned"
+	sourceTypeAttributeName  = "source_type"
+)
+
+func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client, sourceAttributeName string) ([]YtsaurusUser, error) {
 	type YtsaurusUserResponse struct {
-		Name        string         `yson:",value"`
-		Azure       *AzureUser     `yson:"azure,attr"`
-		SourceType  *SourceType    `yson:"source_type,attr"`
+		Name  string         `yson:",value"`
+		Attrs map[string]any `yson:",attrs"`
+		/*Azure       *AzureUser     `yson:"azure,attr"`
 		Source      map[string]any `yson:"source,attr"`
+		SourceType  *SourceType    `yson:"source_type,attr"`
 		Banned      bool           `yson:"banned,attr"`
-		BannedSince string         `yson:"banned_since,attr"`
+		BannedSince string         `yson:"banned_since,attr"`*/
 	}
 
 	var response []YtsaurusUserResponse
@@ -29,11 +36,10 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 		&response,
 		&yt.ListNodeOptions{
 			Attributes: []string{
-				"azure",
-				"banned",
-				"banned_since",
-				"source_type",
-				"source",
+				bannedAttributeName,
+				bannedSinceAttributeName,
+				sourceTypeAttributeName,
+				sourceAttributeName,
 			},
 		},
 	)
@@ -44,21 +50,29 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 	var users []YtsaurusUser
 	for _, ytUser := range response {
 		var bannedSince time.Time
-		if ytUser.BannedSince != "" {
-			bannedSince, err = time.Parse(appTimeFormat, ytUser.BannedSince)
+		if bannedSinceRaw, ok := ytUser.Attrs[bannedSinceAttributeName]; ok && bannedSinceRaw != "" {
+			bannedSince, err = time.Parse(appTimeFormat, bannedSinceRaw.(string))
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to parse @banned_since. %v", ytUser)
 			}
 		}
 		var sourceUser SourceUser
-		if ytUser.Azure != nil {
+		if sourceRaw, ok := ytUser.Attrs[sourceAttributeName]; ok {
+			sourceType := AzureSourceType
+			if sourceTypeRaw, ok := ytUser.Attrs[sourceTypeAttributeName]; ok {
+				sourceType = SourceType(sourceTypeRaw.(string))
+			}
+			sourceUser, err = NewSourceUser(sourceType, sourceRaw.(map[string]any))
+		}
+
+		/*if ytUser.Azure != nil {
 			sourceUser = *ytUser.Azure
 		} else if ytUser.SourceType != nil && ytUser.Source != nil {
 			sourceUser, err = NewSourceUser(*ytUser.SourceType, ytUser.Source)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to create source user. %v", ytUser)
 			}
-		}
+		}*/
 
 		users = append(users, YtsaurusUser{
 			Username:    ytUser.Name,

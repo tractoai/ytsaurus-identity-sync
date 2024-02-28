@@ -22,11 +22,6 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client, sourceAttribut
 	type YtsaurusUserResponse struct {
 		Name  string         `yson:",value"`
 		Attrs map[string]any `yson:",attrs"`
-		/*Azure       *AzureUser     `yson:"azure,attr"`
-		Source      map[string]any `yson:"source,attr"`
-		SourceType  *SourceType    `yson:"source_type,attr"`
-		Banned      bool           `yson:"banned,attr"`
-		BannedSince string         `yson:"banned_since,attr"`*/
 	}
 
 	var response []YtsaurusUserResponse
@@ -64,15 +59,6 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client, sourceAttribut
 			}
 			sourceUser, err = NewSourceUser(sourceType, sourceRaw.(map[string]any))
 		}
-
-		/*if ytUser.Azure != nil {
-			sourceUser = *ytUser.Azure
-		} else if ytUser.SourceType != nil && ytUser.Source != nil {
-			sourceUser, err = NewSourceUser(*ytUser.SourceType, ytUser.Source)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to create source user. %v", ytUser)
-			}
-		}*/
 
 		users = append(users, YtsaurusUser{
 			Username:    ytUser.Name,

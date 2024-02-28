@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"go.ytsaurus.tech/library/go/ptr"
 	"os"
 	"testing"
 	"time"
@@ -570,7 +571,7 @@ func TestAppSync(t *testing.T) {
 								ApplyGroupChanges:   true,
 								ApplyMemberChanges:  true,
 								LogLevel:            "DEBUG",
-								SourceAttributeName: "azure",
+								SourceAttributeName: ptr.String("azure"),
 							},
 						}, getDevelopmentLogger(),
 						azure,

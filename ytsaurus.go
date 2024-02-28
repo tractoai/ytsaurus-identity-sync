@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"go.ytsaurus.tech/library/go/ptr"
 	"os"
 	"time"
 
@@ -62,6 +63,9 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 	if cfg.Timeout == 0 {
 		cfg.Timeout = defaultYtsaurusTimeout
 	}
+	if cfg.SourceAttributeName == nil {
+		cfg.SourceAttributeName = ptr.String("source")
+	}
 	return &Ytsaurus{
 		client:        client,
 		dryRunUsers:   !cfg.ApplyUserChanges,
@@ -74,7 +78,7 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 
 		debugUsernames:      cfg.DebugUsernames,
 		debugGroupnames:     cfg.DebugGroupnames,
-		sourceAttributeName: cfg.SourceAttributeName,
+		sourceAttributeName: *cfg.SourceAttributeName,
 	}, nil
 }
 

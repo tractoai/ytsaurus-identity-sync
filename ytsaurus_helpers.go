@@ -5,22 +5,15 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
 	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
 // Lower level functions for reusing in tests.
 
 func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUser, error) {
-	type YtsaurusUserResponse struct {
-		Name        string            `yson:",value"`
-		Azure       map[string]string `yson:"azure,attr"`
-		Banned      bool              `yson:"banned,attr"`
-		BannedSince string            `yson:"banned_since,attr"`
-	}
-
-	var response []YtsaurusUserResponse
+	var response []yson.ValueWithAttrs
 	err := client.ListNode(
 		ctx,
 		ypath.Path("//sys/users"),
@@ -28,7 +21,6 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 		&yt.ListNodeOptions{
 			Attributes: []string{
 				"azure",
-				"banned",
 				"banned_since",
 			},
 		},
@@ -37,23 +29,40 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 		return nil, err
 	}
 
+	handleNilString := func(val any) string {
+		if val == nil {
+			return ""
+		}
+		return val.(string)
+	}
+
 	var users []YtsaurusUser
 	for _, ytUser := range response {
+		name := ytUser.Value.(string)
+
+		var userData map[string]any
+		if ytUser.Attrs["azure"] != nil {
+			userData = ytUser.Attrs["azure"].(map[string]any)
+		} else {
+			userData = make(map[string]any)
+		}
+
+		var bannedSinceRaw = handleNilString(ytUser.Attrs["banned_since"])
 		var bannedSince time.Time
-		if ytUser.BannedSince != "" {
-			bannedSince, err = time.Parse(appTimeFormat, ytUser.BannedSince)
+		if bannedSinceRaw != "" {
+			bannedSince, err = time.Parse(appTimeFormat, bannedSinceRaw)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to parse @banned_since. %v", ytUser)
 			}
 		}
 		users = append(users, YtsaurusUser{
-			Username:      ytUser.Name,
-			AzureID:       ytUser.Azure["id"],
-			PrincipalName: ytUser.Azure["principal_name"],
-			Email:         ytUser.Azure["email"],
-			FirstName:     ytUser.Azure["first_name"],
-			LastName:      ytUser.Azure["last_name"],
-			DisplayName:   ytUser.Azure["display_name"],
+			Username:      name,
+			AzureID:       handleNilString(userData["id"]),
+			PrincipalName: handleNilString(userData["principal_name"]),
+			Email:         handleNilString(userData["email"]),
+			FirstName:     handleNilString(userData["first_name"]),
+			LastName:      handleNilString(userData["last_name"]),
+			DisplayName:   handleNilString(userData["display_name"]),
 			BannedSince:   bannedSince,
 		})
 	}

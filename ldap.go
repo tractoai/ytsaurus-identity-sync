@@ -33,14 +33,14 @@ func NewLdap(cfg *LdapConfig, logger appLoggerType) (*Ldap, error) {
 	}, nil
 }
 
-func (source *Ldap) GetSourceType() SourceType {
+func (l *Ldap) GetSourceType() SourceType {
 	return LdapSourceType
 }
 
-func (source *Ldap) GetUsers() ([]SourceUser, error) {
-	res, err := source.Connection.Search(&ldap.SearchRequest{
-		BaseDN:     source.Config.BaseDN,
-		Filter:     source.Config.Users.Filter,
+func (l *Ldap) GetUsers() ([]SourceUser, error) {
+	res, err := l.Connection.Search(&ldap.SearchRequest{
+		BaseDN:     l.Config.BaseDN,
+		Filter:     l.Config.Users.Filter,
 		Attributes: []string{"*"},
 		Scope:      ldap.ScopeWholeSubtree,
 	})
@@ -50,11 +50,11 @@ func (source *Ldap) GetUsers() ([]SourceUser, error) {
 
 	var users []SourceUser
 	for _, entry := range res.Entries {
-		username := entry.GetAttributeValue(source.Config.Users.UsernameAttributeType)
-		uid := entry.GetAttributeValue(source.Config.Users.UIDAttributeType)
+		username := entry.GetAttributeValue(l.Config.Users.UsernameAttributeType)
+		uid := entry.GetAttributeValue(l.Config.Users.UIDAttributeType)
 		var firstName string
-		if source.Config.Users.FirstNameAttributeType != nil {
-			firstName = entry.GetAttributeValue(*source.Config.Users.FirstNameAttributeType)
+		if l.Config.Users.FirstNameAttributeType != nil {
+			firstName = entry.GetAttributeValue(*l.Config.Users.FirstNameAttributeType)
 		}
 		users = append(users, LdapUser{
 			Username:  username,
@@ -64,10 +64,10 @@ func (source *Ldap) GetUsers() ([]SourceUser, error) {
 	return users, nil
 }
 
-func (source *Ldap) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
-	res, err := source.Connection.Search(&ldap.SearchRequest{
-		BaseDN:     source.Config.BaseDN,
-		Filter:     source.Config.Groups.Filter,
+func (l *Ldap) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
+	res, err := l.Connection.Search(&ldap.SearchRequest{
+		BaseDN:     l.Config.BaseDN,
+		Filter:     l.Config.Groups.Filter,
 		Attributes: []string{"*"},
 		Scope:      ldap.ScopeWholeSubtree,
 	})
@@ -77,8 +77,8 @@ func (source *Ldap) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 
 	var groups []SourceGroupWithMembers
 	for _, entry := range res.Entries {
-		groupname := entry.GetAttributeValue(source.Config.Groups.GroupnameAttributeType)
-		members := entry.GetAttributeValues(source.Config.Groups.MemberUIDAttributeType)
+		groupname := entry.GetAttributeValue(l.Config.Groups.GroupnameAttributeType)
+		members := entry.GetAttributeValues(l.Config.Groups.MemberUIDAttributeType)
 		groups = append(groups, SourceGroupWithMembers{
 			SourceGroup: LdapGroup{
 				Groupname: groupname,

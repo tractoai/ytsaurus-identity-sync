@@ -25,10 +25,10 @@ func (a *App) syncOnce() {
 }
 
 func (a *App) isRemoveLimitReached(objectsCount int) bool {
-	if a.removeLimit == nil || *a.removeLimit <= 0 {
+	if a.removeLimit <= 0 {
 		return false
 	}
-	return objectsCount >= *a.removeLimit
+	return objectsCount >= a.removeLimit
 }
 
 // syncUsers syncs AD users with YTsaurus cluster and returns /actual/ map[ObjectID]YtsaurusUser
@@ -38,11 +38,9 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 	var err error
 	var sourceUsers []SourceUser
 
-	if a.source != nil {
-		sourceUsers, err = a.source.GetUsers()
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get Source users")
-		}
+	sourceUsers, err = a.source.GetUsers()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get Source users")
 	}
 
 	ytUsers, err := a.ytsaurus.GetUsers(a.source.GetSourceType())
@@ -228,7 +226,7 @@ func (a *App) diffGroups(
 	}
 
 	for objectID, ytGroupWithMembers := range ytGroupsWithMembersMap {
-		// Collecting groups to remove (the ones that exist in YTsaurus and not in Source).
+		// Collecting groups to remove (the ones that exist in YTsaurus and not in Azure).
 		sourceGroupWithMembers, ok := sourceGroupsWithMembersMap[objectID]
 		if !ok {
 			groupsToRemove = append(groupsToRemove, ytGroupWithMembers.YtsaurusGroup)
@@ -406,15 +404,15 @@ func (a *App) isGroupMembersChanged(sourceGroup SourceGroupWithMembers, ytGroup 
 
 func (a *App) banOrRemoveUser(user YtsaurusUser) (wasBanned, wasRemoved bool, err error) {
 	// Ban settings is disabled.
-	if a.banDuration == nil {
+	if a.banDuration == 0 {
 		return false, true, a.ytsaurus.RemoveUser(user.Username)
 	}
 	// If user is not already banned we should do it.
-	if !user.IsBanned() && *a.banDuration != 0 {
+	if !user.IsBanned() {
 		return true, false, a.ytsaurus.BanUser(user.Username)
 	}
 	// If user was banned longer than setting permits, we remove it.
-	if user.IsBanned() && time.Since(user.BannedSince) > *a.banDuration {
+	if user.IsBanned() && time.Since(user.BannedSince) > a.banDuration {
 		return false, true, a.ytsaurus.RemoveUser(user.Username)
 	}
 	a.logger.Debugw("user is banned, but not yet removed", "user", user.Username, "since", user.BannedSince)

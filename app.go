@@ -12,11 +12,11 @@ import (
 )
 
 type App struct {
-	syncInterval      *time.Duration
+	syncInterval      time.Duration
 	usernameReplaces  []ReplacementPair
 	groupnameReplaces []ReplacementPair
-	removeLimit       *int
-	banDuration       *time.Duration
+	removeLimit       int
+	banDuration       time.Duration
 
 	ytsaurus *Ytsaurus
 	source   Source
@@ -27,8 +27,8 @@ type App struct {
 }
 
 func NewApp(cfg *Config, logger appLoggerType) (*App, error) {
-	if cfg.Azure == nil && cfg.Ldap == nil {
-		return nil, errors.New("no source (source or ldap) is specified")
+	if (cfg.Azure == nil) == (cfg.Ldap == nil) {
+		return nil, errors.New("one and only one source should be specified")
 	}
 
 	var err error
@@ -78,8 +78,8 @@ func NewAppCustomized(cfg *Config, logger appLoggerType, source Source, clock cl
 
 func (a *App) Start() {
 	a.logger.Info("Starting the application")
-	if a.syncInterval != nil && *a.syncInterval > 0 {
-		ticker := time.NewTicker(*a.syncInterval)
+	if a.syncInterval > 0 {
+		ticker := time.NewTicker(a.syncInterval)
 		for {
 			select {
 			case <-a.stopCh:

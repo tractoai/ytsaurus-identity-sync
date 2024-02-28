@@ -17,7 +17,7 @@ type Config struct {
 type AppConfig struct {
 	// SyncInterval is the interval between full synchronizations.
 	// If it is not speciied or value is zero than auto-sync disabled (sync can be invoked only manually).
-	SyncInterval *time.Duration `yaml:"sync_interval"`
+	SyncInterval time.Duration `yaml:"sync_interval"`
 
 	// UsernameReplacements is a list of replaces which will be applied to a username for source (Source or Ldap).
 	// For example, you may use it to strip off characters like @ which are not recommended for use
@@ -28,11 +28,11 @@ type AppConfig struct {
 	// If count users or groups for planned delete in on sync cycle reaches RemoveLimit
 	// app will fail that sync cycle.
 	// No limit if it is not specified.
-	RemoveLimit *int `yaml:"remove_limit,omitempty"`
+	RemoveLimit int `yaml:"remove_limit,omitempty"`
 
 	// BanBeforeRemoveDuration is a duration of a graceful ban before finally removing the user from YTsaurus.
 	// If it is not specified, user will be removed straight after user was found to be missing from source (Source or Ldap).
-	BanBeforeRemoveDuration *time.Duration `yaml:"ban_before_remove_duration"`
+	BanBeforeRemoveDuration time.Duration `yaml:"ban_before_remove_duration"`
 }
 
 type ReplacementPair struct {

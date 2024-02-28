@@ -10,8 +10,6 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 
-	"go.ytsaurus.tech/library/go/ptr"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
@@ -195,7 +193,7 @@ func getTestCases(sourceType SourceType) []testCase {
 			appConfig: &AppConfig{
 				UsernameReplacements:    defaultUsernameReplacements,
 				GroupnameReplacements:   defaultGroupnameReplacements,
-				BanBeforeRemoveDuration: ptr.Duration(24 * time.Hour),
+				BanBeforeRemoveDuration: 24 * time.Hour,
 			},
 			sourceUsersSetUp: []SourceUser{
 				getSourceUser(aliceName, sourceType),
@@ -219,7 +217,7 @@ func getTestCases(sourceType SourceType) []testCase {
 			appConfig: &AppConfig{
 				UsernameReplacements:    defaultUsernameReplacements,
 				GroupnameReplacements:   defaultGroupnameReplacements,
-				BanBeforeRemoveDuration: ptr.Duration(24 * time.Hour),
+				BanBeforeRemoveDuration: 24 * time.Hour,
 			},
 			sourceUsersSetUp: []SourceUser{
 				getSourceUser(aliceName, sourceType),
@@ -241,7 +239,7 @@ func getTestCases(sourceType SourceType) []testCase {
 			appConfig: &AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
-				RemoveLimit:           ptr.Int(3),
+				RemoveLimit:           3,
 			},
 			sourceUsersSetUp: []SourceUser{},
 			ytUsersSetUp: []YtsaurusUser{
@@ -262,7 +260,7 @@ func getTestCases(sourceType SourceType) []testCase {
 			appConfig: &AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
-				RemoveLimit:           ptr.Int(3),
+				RemoveLimit:           3,
 			},
 			sourceGroupsSetUp: []SourceGroupWithMembers{},
 			ytGroupsSetUp: []YtsaurusGroupWithMembers{
@@ -483,8 +481,8 @@ var (
 	}
 )
 
-// TestAppSync uses local YTsaurus container and fake Source to test all the cases:
-// [x] If Source user not in YTsaurus -> created;
+// TestAppSync uses local YTsaurus container and some source (Azure or Ldap) to test all the cases:
+// [x] If azur user not in YTsaurus -> created;
 // [x] If Source user already in YTsaurus no changes -> skipped;
 // [x] If Source user already in YTsaurus with changes -> updated;
 // [x] If user in YTsaurus but not in Source (and ban_before_remove_duration=0) -> removed;

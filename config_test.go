@@ -19,7 +19,7 @@ func TestAzureConfig(t *testing.T) {
 	cfg, err := loadConfig(configPath)
 	require.NoError(t, err)
 
-	require.Equal(t, ptr.Duration(5*time.Minute), cfg.App.SyncInterval)
+	require.Equal(t, 5*time.Minute, cfg.App.SyncInterval)
 	require.Equal(t, []ReplacementPair{
 		{From: "@acme.com", To: ""},
 		{From: "@", To: ":"},
@@ -27,8 +27,8 @@ func TestAzureConfig(t *testing.T) {
 	require.Equal(t, []ReplacementPair{
 		{From: "|all", To: ""},
 	}, cfg.App.GroupnameReplacements)
-	require.Equal(t, ptr.Int(10), cfg.App.RemoveLimit)
-	require.Equal(t, ptr.Duration(7*24*time.Hour), cfg.App.BanBeforeRemoveDuration)
+	require.Equal(t, 10, cfg.App.RemoveLimit)
+	require.Equal(t, 7*24*time.Hour, cfg.App.BanBeforeRemoveDuration)
 
 	require.True(t, cfg.Ldap == nil)
 

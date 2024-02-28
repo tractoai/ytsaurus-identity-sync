@@ -67,7 +67,7 @@ func NewAzureReal(cfg *AzureConfig, logger appLoggerType) (*AzureReal, error) {
 		nil,
 	)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create Source secret credentials")
+		return nil, errors.Wrap(err, "failed to create Azure secret credentials")
 	}
 
 	graphClient, err := msgraphsdk.NewGraphServiceClientWithCredentials(cred, []string{scope})
@@ -146,7 +146,7 @@ func (a *AzureReal) GetUsers() ([]SourceUser, error) {
 		}
 	}
 
-	a.logger.Infow("Fetched users from Source AD", "got", len(usersRaw), "skipped", usersSkipped)
+	a.logger.Infow("Fetched users from Azure AD", "got", len(usersRaw), "skipped", usersSkipped)
 	return users, nil
 }
 
@@ -208,7 +208,7 @@ func (a *AzureReal) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 			})
 	}
 
-	a.logger.Infow("Fetched groups from Source AD", "got", len(groupsRaw), "skipped", groupsSkipped)
+	a.logger.Infow("Fetched groups from Azure AD", "got", len(groupsRaw), "skipped", groupsSkipped)
 	return groups, nil
 }
 
@@ -258,7 +258,7 @@ func (a *AzureReal) getUsersRaw(ctx context.Context, fieldsToSelect []string, fi
 		return true
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to iterate over Source users")
+		return nil, errors.Wrap(err, "failed to iterate over Azure users")
 	}
 	return rawUsers, nil
 }
@@ -299,7 +299,7 @@ func (a *AzureReal) getGroupsWithMembersRaw(ctx context.Context, fieldsToSelect 
 		return true
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to iterate over Source groups")
+		return nil, errors.Wrap(err, "failed to iterate over Azure groups")
 	}
 	return rawGroups, nil
 }
@@ -337,7 +337,7 @@ func (a *AzureReal) getGroupMembers(ctx context.Context, groupID string) ([]mode
 		return true
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to iterate over Source group members")
+		return nil, errors.Wrap(err, "failed to iterate over Azure group members")
 	}
 
 	return rawMembers, nil

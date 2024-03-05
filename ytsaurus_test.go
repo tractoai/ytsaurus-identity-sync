@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"go.ytsaurus.tech/library/go/ptr"
 	"os"
 	"testing"
 	"time"
@@ -18,12 +19,13 @@ func getYtsaurus(t *testing.T, ytLocal *YtsaurusLocal) *Ytsaurus {
 	require.NoError(t, os.Setenv("YT_TOKEN", ytDevToken))
 	yt, err := NewYtsaurus(
 		&YtsaurusConfig{
-			Proxy:              ytLocal.GetProxy(),
-			Timeout:            10 * time.Minute,
-			LogLevel:           "DEBUG",
-			ApplyUserChanges:   true,
-			ApplyGroupChanges:  true,
-			ApplyMemberChanges: true,
+			Proxy:               ytLocal.GetProxy(),
+			Timeout:             10 * time.Minute,
+			LogLevel:            "DEBUG",
+			ApplyUserChanges:    true,
+			ApplyGroupChanges:   true,
+			ApplyMemberChanges:  true,
+			SourceAttributeName: ptr.String("azure"),
 		}, getDevelopmentLogger(),
 		clock.RealClock{},
 	)
@@ -44,20 +46,20 @@ func TestUpdateUserFirstName(t *testing.T) {
 	const azureID = "fake-az-id-old"
 
 	managedOleg := YtsaurusUser{
-		Username: "oleg",
-		SourceUser: AzureUser{
-			AzureID:   azureID,
-			FirstName: "Lego",
+		Username:   "oleg",
+		SourceType: ptr.String("azure"),
+		SourceRaw: map[string]any{
+			"id":         azureID,
+			"first_name": "Lego",
 		},
 	}
 	err := yt.CreateUser(managedOleg)
 	require.NoError(t, err)
 
-	updateSourceUser := AzureUser{
-		AzureID:   azureID,
-		FirstName: "Oleg",
+	managedOleg.SourceRaw = map[string]any{
+		"id":         azureID,
+		"first_name": "Oleg",
 	}
-	managedOleg.SourceUser = updateSourceUser
 
 	updErr := yt.UpdateUser(managedOleg.Username, managedOleg)
 
@@ -87,19 +89,21 @@ func TestGroups(t *testing.T) {
 	require.Empty(t, groupsInitial)
 
 	managedOleg := YtsaurusUser{
-		Username: "oleg",
-		SourceUser: AzureUser{
-			AzureID: "fake-az-id-oleg",
+		Username:   "oleg",
+		SourceType: ptr.String("azure"),
+		SourceRaw: map[string]any{
+			"id": "fake-az-id-oleg",
 		},
 	}
 	err = yt.CreateUser(managedOleg)
 	require.NoError(t, err)
 
 	managedOlegsGroup := YtsaurusGroup{
-		Name: "olegs",
-		SourceGroup: AzureGroup{
-			AzureID:     "fake-az-id-olegs",
-			DisplayName: "This is group is for Olegs only",
+		Name:       "olegs",
+		SourceType: ptr.String("azure"),
+		SourceRaw: map[string]any{
+			"id":           "fake-az-id-olegs",
+			"display_name": "This is group is for Olegs only",
 		},
 	}
 	err = yt.CreateGroup(managedOlegsGroup)
@@ -115,10 +119,11 @@ func TestGroups(t *testing.T) {
 	require.Equal(t, []YtsaurusGroupWithMembers{
 		{
 			YtsaurusGroup: YtsaurusGroup{
-				Name: managedOlegsGroup.Name,
-				SourceGroup: AzureGroup{
-					AzureID:     managedOlegsGroup.SourceGroup.(AzureGroup).AzureID,
-					DisplayName: managedOlegsGroup.SourceGroup.(AzureGroup).DisplayName,
+				Name:       managedOlegsGroup.Name,
+				SourceType: ptr.String("azure"),
+				SourceRaw: map[string]any{
+					"id":           managedOlegsGroup.SourceRaw["id"],
+					"display_name": managedOlegsGroup.SourceRaw["display_name"],
 				},
 			},
 			Members: members,
@@ -133,10 +138,11 @@ func TestGroups(t *testing.T) {
 	require.Equal(t, []YtsaurusGroupWithMembers{
 		{
 			YtsaurusGroup: YtsaurusGroup{
-				Name: managedOlegsGroup.Name,
-				SourceGroup: AzureGroup{
-					AzureID:     managedOlegsGroup.SourceGroup.(AzureGroup).AzureID,
-					DisplayName: managedOlegsGroup.SourceGroup.(AzureGroup).DisplayName,
+				Name:       managedOlegsGroup.Name,
+				SourceType: ptr.String("azure"),
+				SourceRaw: map[string]any{
+					"id":           managedOlegsGroup.SourceRaw["id"],
+					"display_name": managedOlegsGroup.SourceRaw["display_name"],
 				},
 			},
 			Members: NewStringSet(),

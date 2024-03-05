@@ -122,8 +122,8 @@ func (y *Ytsaurus) CreateUser(user YtsaurusUser) error {
 		y.client,
 		user.Username,
 		map[string]any{
-			user.GetSourceAttributeName(): user.SourceUser,
-			"source_type":                 user.SourceUser.GetSourceType(),
+			y.sourceAttributeName: user.SourceRaw,
+			"source_type":         user.SourceType,
 		},
 	)
 }
@@ -151,7 +151,7 @@ func (y *Ytsaurus) UpdateUser(username string, user YtsaurusUser) error {
 		ctx,
 		y.client,
 		username,
-		buildUserAttributes(user),
+		buildUserAttributes(user, y.sourceAttributeName),
 	)
 }
 
@@ -207,7 +207,7 @@ func (y *Ytsaurus) GetGroupsWithMembers(sourceType SourceType) ([]YtsaurusGroupW
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	groups, err := doGetAllYtsaurusGroupsWithMembers(ctx, y.client)
+	groups, err := doGetAllYtsaurusGroupsWithMembers(ctx, y.client, y.sourceAttributeName)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get ytsaurus groups")
 	}
@@ -242,8 +242,8 @@ func (y *Ytsaurus) CreateGroup(group YtsaurusGroup) error {
 		y.client,
 		group.Name,
 		map[string]any{
-			"source_type":                  group.SourceGroup.GetSourceType(),
-			group.GetSourceAttributeName(): group.SourceGroup,
+			"source_type":         group.SourceType,
+			y.sourceAttributeName: group.SourceRaw,
 		},
 	)
 }
@@ -270,7 +270,7 @@ func (y *Ytsaurus) UpdateGroup(groupname string, group YtsaurusGroup) error {
 		ctx,
 		y.client,
 		groupname,
-		buildGroupAttributes(group),
+		buildGroupAttributes(group, y.sourceAttributeName),
 	)
 }
 

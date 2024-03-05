@@ -4,24 +4,37 @@ import (
 	"time"
 )
 
+type SourceUser interface {
+	GetID() ObjectID
+	GetName() string
+	GetSourceType() SourceType
+	GetRaw() (map[string]any, error)
+}
+
+type SourceGroup interface {
+	GetID() ObjectID
+	GetName() string
+	GetSourceType() SourceType
+	GetRaw() (map[string]any, error)
+}
+
+type SourceGroupWithMembers struct {
+	SourceGroup SourceGroup
+	// Members is a set of strings, representing users' ObjectID.
+	Members StringSet
+}
+
 type YtsaurusUser struct {
 	// Username is a unique @name attribute of a user.
 	Username    string
-	SourceUser  SourceUser
+	SourceType  *string
+	SourceRaw   map[string]any
 	BannedSince time.Time
-}
-
-func (u YtsaurusUser) GetSourceAttributeName() string {
-	switch u.SourceUser.GetSourceType() {
-	case AzureSourceType:
-		return "azure"
-	}
-	return "source"
 }
 
 // IsManuallyManaged true if user doesn't have @azure attribute (system or manually created user).
 func (u YtsaurusUser) IsManuallyManaged(sourceType SourceType) bool {
-	return u.SourceUser == nil || u.SourceUser.GetSourceType() != sourceType
+	return u.SourceRaw == nil || u.SourceType == nil || *u.SourceType != string(sourceType)
 }
 
 func (u YtsaurusUser) IsBanned() bool {
@@ -37,21 +50,14 @@ func (u YtsaurusUser) BannedSinceString() string {
 
 type YtsaurusGroup struct {
 	// Name is a unique @name attribute of a group.
-	Name        string
-	SourceGroup SourceGroup
-}
-
-func (g YtsaurusGroup) GetSourceAttributeName() string {
-	switch g.SourceGroup.GetSourceType() {
-	case AzureSourceType:
-		return "azure"
-	}
-	return "source"
+	Name       string
+	SourceType *string
+	SourceRaw  map[string]any
 }
 
 // IsManuallyManaged true if group doesn't have @azure attribute (system or manually created group).
 func (g YtsaurusGroup) IsManuallyManaged(sourceType SourceType) bool {
-	return g.SourceGroup == nil || g.SourceGroup.GetSourceType() != sourceType
+	return g.SourceRaw == nil || g.SourceType == nil || *g.SourceType != string(sourceType)
 }
 
 type YtsaurusGroupWithMembers struct {

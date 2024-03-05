@@ -11,6 +11,12 @@ import (
 	"k8s.io/utils/clock"
 )
 
+type Source interface {
+	GetUsers() ([]SourceUser, error)
+	GetGroupsWithMembers() ([]SourceGroupWithMembers, error)
+	GetSourceType() SourceType
+}
+
 type App struct {
 	syncInterval      time.Duration
 	usernameReplaces  []ReplacementPair

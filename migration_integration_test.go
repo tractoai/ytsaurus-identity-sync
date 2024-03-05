@@ -73,7 +73,7 @@ func TestUsersMigration(t *testing.T) {
 			context.Background(),
 			yt.client,
 			username,
-			user.GetSourceAttributeName(),
+			"azure",
 			attrValue,
 		)
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestGroupsMigration(t *testing.T) {
 			context.Background(),
 			yt.client,
 			groupname,
-			group.GetSourceAttributeName(),
+			"azure",
 			attrValue,
 		)
 		require.NoError(t, err)

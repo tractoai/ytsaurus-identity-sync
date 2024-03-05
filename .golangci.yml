@@ -89,9 +89,6 @@ linters-settings:
   gofmt:
     simplify: false # gofmt with `-s` option, true by default
 
-  goimports:
-    local-prefixes: go.ytsaurus.tech
-
   goconst:
     # minimal length of string constant, 3 by default
     min-len: 3

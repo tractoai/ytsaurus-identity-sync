@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"go.ytsaurus.tech/library/go/ptr"
 	"os"
 	"testing"
 	"time"
+
+	"go.ytsaurus.tech/library/go/ptr"
 
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/clock"

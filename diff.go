@@ -3,9 +3,10 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"go.ytsaurus.tech/yt/go/yson"
 	"strings"
 	"time"
+
+	"go.ytsaurus.tech/yt/go/yson"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -208,15 +209,12 @@ func (a *App) diffGroups(
 		if group.IsManuallyManaged(a.source.GetSourceType()) {
 			continue
 		}
-		sourceType := SourceType(*group.SourceType)
-		switch sourceType {
-		case AzureSourceType:
-			sourceGroup, err := NewAzureGroup(group.SourceRaw)
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to create azure group from source")
-			}
-			existedGroupsWithMembersMap[sourceGroup.GetID()] = existedGroup{group, sourceGroup}
+
+		sourceGroup, err := a.buildSourceGroup(&group)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create azure group from source")
 		}
+		existedGroupsWithMembersMap[sourceGroup.GetID()] = existedGroup{group, sourceGroup}
 	}
 
 	// Collecting groups to create (the ones that exist in Source but not in YTsaurus).
@@ -323,16 +321,12 @@ func (a *App) diffUsers(
 		if user.IsManuallyManaged(a.source.GetSourceType()) {
 			continue
 		}
-		sourceType := SourceType(*user.SourceType)
-		switch sourceType {
-		case AzureSourceType:
-			sourceUser, err := NewAzureUser(user.SourceRaw)
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to create azure user from source")
-			}
-			existedUsersMap[sourceUser.GetID()] = existedUser{user, sourceUser}
-			resultUsersMap[sourceUser.GetID()] = user
+		sourceUser, err := a.buildSourceUser(&user)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create azure user from source")
 		}
+		existedUsersMap[sourceUser.GetID()] = existedUser{user, sourceUser}
+		resultUsersMap[sourceUser.GetID()] = user
 	}
 
 	var create, remove []YtsaurusUser
@@ -404,6 +398,20 @@ func (a *App) buildSourceUser(ytUser *YtsaurusUser) (SourceUser, error) {
 	case AzureSourceType:
 		{
 			return NewAzureUser(ytUser.SourceRaw)
+		}
+	}
+	return nil, errors.New("unknown user source type")
+}
+
+func (a *App) buildSourceGroup(ytGroup *YtsaurusGroupWithMembers) (SourceUser, error) {
+	if ytGroup.IsManuallyManaged(a.source.GetSourceType()) {
+		return nil, errors.New("user is manually managed and can't be converted to source user")
+	}
+	sourceType := SourceType(*ytGroup.SourceType)
+	switch sourceType {
+	case AzureSourceType:
+		{
+			return NewAzureGroup(ytGroup.SourceRaw)
 		}
 	}
 	return nil, errors.New("unknown user source type")

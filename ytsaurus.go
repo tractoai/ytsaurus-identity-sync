@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"go.ytsaurus.tech/library/go/ptr"
 	"os"
 	"time"
+
+	"go.ytsaurus.tech/library/go/ptr"
 
 	"github.com/pkg/errors"
 	"k8s.io/utils/clock"

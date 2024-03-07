@@ -38,10 +38,6 @@ func (au AzureUser) GetName() string {
 	return au.PrincipalName
 }
 
-func (au AzureUser) GetSourceType() SourceType {
-	return AzureSourceType
-}
-
 func (au AzureUser) GetRaw() (map[string]any, error) {
 	bytes, err := yson.Marshal(au)
 	if err != nil {
@@ -85,10 +81,6 @@ func (ag AzureGroup) GetID() ObjectID {
 
 func (ag AzureGroup) GetName() string {
 	return ag.Identity
-}
-
-func (ag AzureGroup) GetSourceType() SourceType {
-	return AzureSourceType
 }
 
 func (ag AzureGroup) GetRaw() (map[string]any, error) {

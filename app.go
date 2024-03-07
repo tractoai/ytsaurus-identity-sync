@@ -11,10 +11,13 @@ import (
 	"k8s.io/utils/clock"
 )
 
+type ObjectID = string
+
 type Source interface {
 	GetUsers() ([]SourceUser, error)
 	GetGroupsWithMembers() ([]SourceGroupWithMembers, error)
-	GetSourceType() SourceType
+	CreateUserFromRaw(raw map[string]any) (SourceUser, error)
+	CreateGroupFromRaw(raw map[string]any) (SourceGroup, error)
 }
 
 type App struct {

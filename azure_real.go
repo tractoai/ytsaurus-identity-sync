@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	scope              = "https://graph.microsoft.com/.default"
-	msgraphExpandLimit = 20
+	scope                    = "https://graph.microsoft.com/.default"
+	msgraphExpandLimit       = 20
+	defaultAzureTimeout      = 3 * time.Second
+	defaultAzureSecretEnvVar = "AZURE_CLIENT_SECRET"
 )
 
 var (
@@ -98,8 +100,12 @@ func handleNil[T any](s *T) T {
 	return result
 }
 
-func (a *AzureReal) GetSourceType() SourceType {
-	return AzureSourceType
+func (a *AzureReal) CreateUserFromRaw(raw map[string]any) (SourceUser, error) {
+	return NewAzureUser(raw)
+}
+
+func (a *AzureReal) CreateGroupFromRaw(raw map[string]any) (SourceGroup, error) {
+	return NewAzureGroup(raw)
 }
 
 func (a *AzureReal) GetUsers() ([]SourceUser, error) {

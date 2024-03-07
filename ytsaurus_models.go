@@ -4,37 +4,16 @@ import (
 	"time"
 )
 
-type SourceUser interface {
-	GetID() ObjectID
-	GetName() string
-	GetSourceType() SourceType
-	GetRaw() (map[string]any, error)
-}
-
-type SourceGroup interface {
-	GetID() ObjectID
-	GetName() string
-	GetSourceType() SourceType
-	GetRaw() (map[string]any, error)
-}
-
-type SourceGroupWithMembers struct {
-	SourceGroup SourceGroup
-	// Members is a set of strings, representing users' ObjectID.
-	Members StringSet
-}
-
 type YtsaurusUser struct {
 	// Username is a unique @name attribute of a user.
 	Username    string
-	SourceType  *string
 	SourceRaw   map[string]any
 	BannedSince time.Time
 }
 
 // IsManuallyManaged true if user doesn't have @azure attribute (system or manually created user).
-func (u YtsaurusUser) IsManuallyManaged(sourceType SourceType) bool {
-	return u.SourceRaw == nil || u.SourceType == nil || *u.SourceType != string(sourceType)
+func (u YtsaurusUser) IsManuallyManaged() bool {
+	return u.SourceRaw == nil
 }
 
 func (u YtsaurusUser) IsBanned() bool {
@@ -50,14 +29,13 @@ func (u YtsaurusUser) BannedSinceString() string {
 
 type YtsaurusGroup struct {
 	// Name is a unique @name attribute of a group.
-	Name       string
-	SourceType *string
-	SourceRaw  map[string]any
+	Name      string
+	SourceRaw map[string]any
 }
 
 // IsManuallyManaged true if group doesn't have @azure attribute (system or manually created group).
-func (g YtsaurusGroup) IsManuallyManaged(sourceType SourceType) bool {
-	return g.SourceRaw == nil || g.SourceType == nil || *g.SourceType != string(sourceType)
+func (g YtsaurusGroup) IsManuallyManaged() bool {
+	return g.SourceRaw == nil
 }
 
 type YtsaurusGroupWithMembers struct {

@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"go.ytsaurus.tech/library/go/ptr"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
@@ -100,8 +98,7 @@ var (
 	}
 
 	aliceYtsaurus = YtsaurusUser{
-		Username:   "alice",
-		SourceType: ptr.String("azure"),
+		Username: "alice",
 		SourceRaw: map[string]any{
 			"id":             aliceAzure.AzureID,
 			"principal_name": aliceAzure.PrincipalName,
@@ -112,8 +109,7 @@ var (
 		},
 	}
 	bobYtsaurus = YtsaurusUser{
-		Username:   "bob",
-		SourceType: ptr.String("azure"),
+		Username: "bob",
 		SourceRaw: map[string]any{
 			"id":             bobAzure.AzureID,
 			"principal_name": bobAzure.PrincipalName,
@@ -124,8 +120,7 @@ var (
 		},
 	}
 	carolYtsaurus = YtsaurusUser{
-		Username:   "carol",
-		SourceType: ptr.String("azure"),
+		Username: "carol",
 		SourceRaw: map[string]any{
 			"id":             carolAzure.AzureID,
 			"principal_name": carolAzure.PrincipalName,
@@ -136,8 +131,7 @@ var (
 		},
 	}
 	aliceYtsaurusChangedLastName = YtsaurusUser{
-		Username:   aliceYtsaurus.Username,
-		SourceType: ptr.String("azure"),
+		Username: aliceYtsaurus.Username,
 		SourceRaw: map[string]any{
 			"id":             aliceYtsaurus.SourceRaw["id"],
 			"principal_name": aliceYtsaurus.SourceRaw["principal_name"],
@@ -148,8 +142,7 @@ var (
 		},
 	}
 	bobYtsaurusChangedEmail = YtsaurusUser{
-		Username:   "bobby:example.com",
-		SourceType: ptr.String("azure"),
+		Username: "bobby:example.com",
 		SourceRaw: map[string]any{
 			"id":             bobYtsaurus.SourceRaw["id"],
 			"principal_name": bobAzureChangedEmail.PrincipalName,
@@ -160,8 +153,7 @@ var (
 		},
 	}
 	bobYtsaurusBanned = YtsaurusUser{
-		Username:   bobYtsaurus.Username,
-		SourceType: ptr.String("azure"),
+		Username: bobYtsaurus.Username,
 		SourceRaw: map[string]any{
 			"id":             bobYtsaurus.SourceRaw["id"],
 			"principal_name": bobYtsaurus.SourceRaw["principal_name"],
@@ -173,8 +165,7 @@ var (
 		BannedSince: initialTestTime,
 	}
 	carolYtsaurusBanned = YtsaurusUser{
-		Username:   carolYtsaurus.Username,
-		SourceType: ptr.String("azure"),
+		Username: carolYtsaurus.Username,
 		SourceRaw: map[string]any{
 			"id":             carolYtsaurus.SourceRaw["id"],
 			"principal_name": carolYtsaurus.SourceRaw["principal_name"],
@@ -186,8 +177,7 @@ var (
 		BannedSince: initialTestTime.Add(40 * time.Hour),
 	}
 	devsYtsaurusGroup = YtsaurusGroup{
-		Name:       "acme.devs",
-		SourceType: ptr.String("azure"),
+		Name: "acme.devs",
 		SourceRaw: map[string]any{
 			"id":           devsAzureGroup.AzureID,
 			"display_name": "acme.devs|all",
@@ -195,8 +185,7 @@ var (
 		},
 	}
 	qaYtsaurusGroup = YtsaurusGroup{
-		Name:       "acme.qa",
-		SourceType: ptr.String("azure"),
+		Name: "acme.qa",
 		SourceRaw: map[string]any{
 			"id":           "fake-az-acme.qa",
 			"display_name": "acme.qa|all",
@@ -204,8 +193,7 @@ var (
 		},
 	}
 	hqYtsaurusGroup = YtsaurusGroup{
-		Name:       "acme.hq",
-		SourceType: ptr.String("azure"),
+		Name: "acme.hq",
 		SourceRaw: map[string]any{
 			"id":           hqAzureGroup.AzureID,
 			"display_name": "acme.hq",
@@ -213,8 +201,7 @@ var (
 		},
 	}
 	devsYtsaurusGroupChangedDisplayName = YtsaurusGroup{
-		Name:       "acme.developers",
-		SourceType: ptr.String("azure"),
+		Name: "acme.developers",
 		SourceRaw: map[string]any{
 			"id":           devsAzureGroup.AzureID,
 			"display_name": "acme.developers|all",
@@ -222,8 +209,7 @@ var (
 		},
 	}
 	hqYtsaurusGroupChangedBackwardCompatible = YtsaurusGroup{
-		Name:       "acme.hq",
-		SourceType: ptr.String("azure"),
+		Name: "acme.hq",
 		SourceRaw: map[string]any{
 			"id":           hqAzureGroup.AzureID,
 			"display_name": "acme.hq|all",
@@ -497,9 +483,9 @@ var (
 					),
 				},
 				{
-					// for this group only displayName should be updated
+					// For this group only displayName should be updated.
 					SourceGroup: hqAzureGroupChangedBackwardCompatible,
-					// members also changed
+					// Members also changed.
 					Members: NewStringSetFromItems(
 						aliceAzure.AzureID,
 						carolAzure.AzureID,
@@ -583,7 +569,7 @@ func TestAppSync(t *testing.T) {
 								ApplyGroupChanges:   true,
 								ApplyMemberChanges:  true,
 								LogLevel:            "DEBUG",
-								SourceAttributeName: ptr.String("azure"),
+								SourceAttributeName: "azure",
 							},
 						}, getDevelopmentLogger(),
 						azure,

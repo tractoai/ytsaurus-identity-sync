@@ -15,7 +15,6 @@ import (
 const (
 	bannedSinceAttributeName = "banned_since"
 	bannedAttributeName      = "banned"
-	sourceTypeAttributeName  = "source_type"
 	membersAttributeName     = "members"
 	nameAttributeName        = "name"
 )
@@ -35,7 +34,6 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client, sourceAttribut
 			Attributes: []string{
 				bannedAttributeName,
 				bannedSinceAttributeName,
-				sourceTypeAttributeName,
 				sourceAttributeName,
 			},
 		},
@@ -58,13 +56,6 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client, sourceAttribut
 				}
 			}
 			if sourceRaw, ok := ytUser.Attrs[sourceAttributeName]; ok {
-				// For backward compatibility only.
-				sourceType := string(AzureSourceType)
-				if sourceTypeRaw, ok := ytUser.Attrs[sourceTypeAttributeName]; ok {
-					sourceType = sourceTypeRaw.(string)
-				}
-
-				user.SourceType = &sourceType
 				user.SourceRaw = sourceRaw.(map[string]any)
 			}
 		}
@@ -89,7 +80,6 @@ func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client, so
 			Attributes: []string{
 				membersAttributeName,
 				sourceAttributeName,
-				sourceTypeAttributeName,
 			},
 		},
 	)
@@ -111,13 +101,6 @@ func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client, so
 			}
 
 			if sourceRaw, ok := ytGroup.Attrs[sourceAttributeName]; ok {
-				// For backward compatibility only.
-				sourceType := string(AzureSourceType)
-				if sourceTypeRaw, ok := ytGroup.Attrs[sourceTypeAttributeName]; ok {
-					sourceType = sourceTypeRaw.(string)
-				}
-
-				group.SourceType = &sourceType
 				group.SourceRaw = sourceRaw.(map[string]any)
 			}
 		}
@@ -180,15 +163,13 @@ func buildUserAttributes(user YtsaurusUser, sourceAttributeName string) map[stri
 		bannedSinceAttributeName: user.BannedSinceString(),
 		bannedAttributeName:      user.IsBanned(),
 		sourceAttributeName:      user.SourceRaw,
-		sourceTypeAttributeName:  user.SourceType,
 	}
 }
 
 func buildGroupAttributes(group YtsaurusGroup, sourceAttributeName string) map[string]any {
 	return map[string]any{
-		sourceAttributeName:     group.SourceRaw,
-		nameAttributeName:       group.Name,
-		sourceTypeAttributeName: group.SourceType,
+		sourceAttributeName: group.SourceRaw,
+		nameAttributeName:   group.Name,
 	}
 }
 

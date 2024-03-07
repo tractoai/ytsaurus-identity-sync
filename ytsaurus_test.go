@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"go.ytsaurus.tech/library/go/ptr"
-
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/clock"
 
@@ -26,7 +24,7 @@ func getYtsaurus(t *testing.T, ytLocal *YtsaurusLocal) *Ytsaurus {
 			ApplyUserChanges:    true,
 			ApplyGroupChanges:   true,
 			ApplyMemberChanges:  true,
-			SourceAttributeName: ptr.String("azure"),
+			SourceAttributeName: "azure",
 		}, getDevelopmentLogger(),
 		clock.RealClock{},
 	)
@@ -47,8 +45,7 @@ func TestUpdateUserFirstName(t *testing.T) {
 	const azureID = "fake-az-id-old"
 
 	managedOleg := YtsaurusUser{
-		Username:   "oleg",
-		SourceType: ptr.String("azure"),
+		Username: "oleg",
 		SourceRaw: map[string]any{
 			"id":         azureID,
 			"first_name": "Lego",
@@ -85,13 +82,12 @@ func TestGroups(t *testing.T) {
 	defer func() { require.NoError(t, ytLocal.Stop()) }()
 	yt := getYtsaurus(t, ytLocal)
 
-	groupsInitial, err := yt.GetGroupsWithMembers(AzureSourceType)
+	groupsInitial, err := yt.GetGroupsWithMembers()
 	require.NoError(t, err)
 	require.Empty(t, groupsInitial)
 
 	managedOleg := YtsaurusUser{
-		Username:   "oleg",
-		SourceType: ptr.String("azure"),
+		Username: "oleg",
 		SourceRaw: map[string]any{
 			"id": "fake-az-id-oleg",
 		},
@@ -100,8 +96,7 @@ func TestGroups(t *testing.T) {
 	require.NoError(t, err)
 
 	managedOlegsGroup := YtsaurusGroup{
-		Name:       "olegs",
-		SourceType: ptr.String("azure"),
+		Name: "olegs",
 		SourceRaw: map[string]any{
 			"id":           "fake-az-id-olegs",
 			"display_name": "This is group is for Olegs only",
@@ -113,15 +108,14 @@ func TestGroups(t *testing.T) {
 	err = yt.AddMember(managedOleg.Username, managedOlegsGroup.Name)
 	require.NoError(t, err)
 
-	groupsAfterCreate, err := yt.GetGroupsWithMembers(AzureSourceType)
+	groupsAfterCreate, err := yt.GetGroupsWithMembers()
 	require.NoError(t, err)
 	members := NewStringSet()
 	members.Add(managedOleg.Username)
 	require.Equal(t, []YtsaurusGroupWithMembers{
 		{
 			YtsaurusGroup: YtsaurusGroup{
-				Name:       managedOlegsGroup.Name,
-				SourceType: ptr.String("azure"),
+				Name: managedOlegsGroup.Name,
 				SourceRaw: map[string]any{
 					"id":           managedOlegsGroup.SourceRaw["id"],
 					"display_name": managedOlegsGroup.SourceRaw["display_name"],
@@ -134,13 +128,12 @@ func TestGroups(t *testing.T) {
 	err = yt.RemoveMember(managedOleg.Username, managedOlegsGroup.Name)
 	require.NoError(t, err)
 
-	groupsAfterRemoveMember, err := yt.GetGroupsWithMembers(AzureSourceType)
+	groupsAfterRemoveMember, err := yt.GetGroupsWithMembers()
 	require.NoError(t, err)
 	require.Equal(t, []YtsaurusGroupWithMembers{
 		{
 			YtsaurusGroup: YtsaurusGroup{
-				Name:       managedOlegsGroup.Name,
-				SourceType: ptr.String("azure"),
+				Name: managedOlegsGroup.Name,
 				SourceRaw: map[string]any{
 					"id":           managedOlegsGroup.SourceRaw["id"],
 					"display_name": managedOlegsGroup.SourceRaw["display_name"],
@@ -153,7 +146,7 @@ func TestGroups(t *testing.T) {
 	err = yt.RemoveGroup(managedOlegsGroup.Name)
 	require.NoError(t, err)
 
-	groupsAfterRemove, err := yt.GetGroupsWithMembers(AzureSourceType)
+	groupsAfterRemove, err := yt.GetGroupsWithMembers()
 	require.NoError(t, err)
 	require.Empty(t, groupsAfterRemove)
 

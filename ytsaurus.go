@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
-
-	"go.ytsaurus.tech/library/go/ptr"
 
 	"github.com/pkg/errors"
 	"k8s.io/utils/clock"
@@ -64,8 +63,8 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 	if cfg.Timeout == 0 {
 		cfg.Timeout = defaultYtsaurusTimeout
 	}
-	if cfg.SourceAttributeName == nil {
-		cfg.SourceAttributeName = ptr.String("source")
+	if cfg.SourceAttributeName == "" {
+		cfg.SourceAttributeName = "source"
 	}
 	return &Ytsaurus{
 		client:        client,
@@ -79,11 +78,11 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 
 		debugUsernames:      cfg.DebugUsernames,
 		debugGroupnames:     cfg.DebugGroupnames,
-		sourceAttributeName: *cfg.SourceAttributeName,
+		sourceAttributeName: cfg.SourceAttributeName,
 	}, nil
 }
 
-func (y *Ytsaurus) GetUsers(sourceType SourceType) ([]YtsaurusUser, error) {
+func (y *Ytsaurus) GetUsers() ([]YtsaurusUser, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
@@ -94,7 +93,7 @@ func (y *Ytsaurus) GetUsers(sourceType SourceType) ([]YtsaurusUser, error) {
 	var managedUsers []YtsaurusUser
 	for _, user := range users {
 		y.maybePrintExtraLogs(user.Username, "get_user", "user", user)
-		if user.IsManuallyManaged(sourceType) {
+		if user.IsManuallyManaged() {
 			continue
 		}
 		managedUsers = append(managedUsers, user)
@@ -124,7 +123,6 @@ func (y *Ytsaurus) CreateUser(user YtsaurusUser) error {
 		user.Username,
 		map[string]any{
 			y.sourceAttributeName: user.SourceRaw,
-			"source_type":         user.SourceType,
 		},
 	)
 }
@@ -204,7 +202,7 @@ func (y *Ytsaurus) BanUser(username string) error {
 	)
 }
 
-func (y *Ytsaurus) GetGroupsWithMembers(sourceType SourceType) ([]YtsaurusGroupWithMembers, error) {
+func (y *Ytsaurus) GetGroupsWithMembers() ([]YtsaurusGroupWithMembers, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
@@ -215,7 +213,7 @@ func (y *Ytsaurus) GetGroupsWithMembers(sourceType SourceType) ([]YtsaurusGroupW
 	var managedGroups []YtsaurusGroupWithMembers
 	for _, group := range groups {
 		y.maybePrintExtraLogs(group.Name, "get_group", "group", group)
-		if group.IsManuallyManaged(sourceType) {
+		if group.IsManuallyManaged() {
 			continue
 		}
 		managedGroups = append(managedGroups, group)
@@ -243,7 +241,6 @@ func (y *Ytsaurus) CreateGroup(group YtsaurusGroup) error {
 		y.client,
 		group.Name,
 		map[string]any{
-			"source_type":         group.SourceType,
 			y.sourceAttributeName: group.SourceRaw,
 		},
 	)
@@ -343,23 +340,11 @@ func (y *Ytsaurus) isUserManaged(username string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	attrAzureExists, err := y.client.NodeExists(
+	return y.client.NodeExists(
 		ctx,
-		ypath.Path("//sys/users/"+username+"/@azure"),
+		ypath.Path(fmt.Sprintf("//sys/users/%v/@%v", username, y.sourceAttributeName)),
 		nil,
 	)
-	if err != nil {
-		return false, err
-	}
-	attrSourceExists, err := y.client.NodeExists(
-		ctx,
-		ypath.Path("//sys/users/"+username+"/@source"),
-		nil,
-	)
-	if err != nil {
-		return false, err
-	}
-	return attrAzureExists || attrSourceExists, nil
 }
 
 func (y *Ytsaurus) ensureUserManaged(username string) error {
@@ -377,24 +362,11 @@ func (y *Ytsaurus) isGroupManaged(name string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	attrAzureExists, err := y.client.NodeExists(
+	return y.client.NodeExists(
 		ctx,
-		ypath.Path("//sys/groups/"+name+"/@azure"),
+		ypath.Path(fmt.Sprintf("//sys/groups/%v/@%v", name, y.sourceAttributeName)),
 		nil,
 	)
-	if err != nil {
-		return false, err
-	}
-	attrSourceExists, err := y.client.NodeExists(
-		ctx,
-		ypath.Path("//sys/groups/"+name+"/@source"),
-		nil,
-	)
-	if err != nil {
-		return false, err
-	}
-
-	return attrAzureExists || attrSourceExists, nil
 }
 
 func (y *Ytsaurus) ensureGroupManaged(groupname string) error {

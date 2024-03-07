@@ -12,6 +12,24 @@ import (
 	"go.uber.org/zap"
 )
 
+type SourceUser interface {
+	GetID() ObjectID
+	GetName() string
+	GetRaw() (map[string]any, error)
+}
+
+type SourceGroup interface {
+	GetID() ObjectID
+	GetName() string
+	GetRaw() (map[string]any, error)
+}
+
+type SourceGroupWithMembers struct {
+	SourceGroup SourceGroup
+	// Members is a set of strings, representing users' ObjectID.
+	Members StringSet
+}
+
 func (a *App) syncOnce() {
 	a.logger.Info("Start syncing")
 	defer a.logger.Info("Finish syncing")
@@ -46,7 +64,7 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 		return nil, errors.Wrap(err, "failed to get Source users")
 	}
 
-	ytUsers, err := a.ytsaurus.GetUsers(a.source.GetSourceType())
+	ytUsers, err := a.ytsaurus.GetUsers()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get YTsaurus users")
 	}
@@ -106,7 +124,7 @@ func (a *App) syncGroups(usersMap map[ObjectID]YtsaurusUser) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get Source groups")
 	}
-	ytGroups, err := a.ytsaurus.GetGroupsWithMembers(a.source.GetSourceType())
+	ytGroups, err := a.ytsaurus.GetGroupsWithMembers()
 	if err != nil {
 		return errors.Wrap(err, "failed to get YTsaurus groups")
 	}
@@ -206,10 +224,6 @@ func (a *App) diffGroups(
 
 	existedGroupsWithMembersMap := make(map[ObjectID]existedGroup)
 	for _, group := range ytGroups {
-		if group.IsManuallyManaged(a.source.GetSourceType()) {
-			continue
-		}
-
 		sourceGroup, err := a.buildSourceGroup(&group)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create azure group from source")
@@ -318,12 +332,9 @@ func (a *App) diffUsers(
 
 	existedUsersMap := make(map[ObjectID]existedUser)
 	for _, user := range ytUsers {
-		if user.IsManuallyManaged(a.source.GetSourceType()) {
-			continue
-		}
 		sourceUser, err := a.buildSourceUser(&user)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to create azure user from source")
+			return nil, errors.Wrap(err, "failed to build source user")
 		}
 		existedUsersMap[sourceUser.GetID()] = existedUser{user, sourceUser}
 		resultUsersMap[sourceUser.GetID()] = user
@@ -390,59 +401,41 @@ func (a *App) buildGroupName(sourceGroup SourceGroup) string {
 }
 
 func (a *App) buildSourceUser(ytUser *YtsaurusUser) (SourceUser, error) {
-	if ytUser.IsManuallyManaged(a.source.GetSourceType()) {
+	if ytUser.IsManuallyManaged() {
 		return nil, errors.New("user is manually managed and can't be converted to source user")
 	}
-	sourceType := SourceType(*ytUser.SourceType)
-	switch sourceType {
-	case AzureSourceType:
-		{
-			return NewAzureUser(ytUser.SourceRaw)
-		}
-	}
-	return nil, errors.New("unknown user source type")
+	return a.source.CreateUserFromRaw(ytUser.SourceRaw)
 }
 
 func (a *App) buildSourceGroup(ytGroup *YtsaurusGroupWithMembers) (SourceUser, error) {
-	if ytGroup.IsManuallyManaged(a.source.GetSourceType()) {
+	if ytGroup.IsManuallyManaged() {
 		return nil, errors.New("user is manually managed and can't be converted to source user")
 	}
-	sourceType := SourceType(*ytGroup.SourceType)
-	switch sourceType {
-	case AzureSourceType:
-		{
-			return NewAzureGroup(ytGroup.SourceRaw)
-		}
-	}
-	return nil, errors.New("unknown user source type")
+	return a.source.CreateGroupFromRaw(ytGroup.SourceRaw)
 }
 
 func (a *App) buildYtsaurusUser(sourceUser SourceUser) (YtsaurusUser, error) {
-	sourceType := string(sourceUser.GetSourceType())
 	sourceRaw, err := sourceUser.GetRaw()
 	if err != nil {
 		return YtsaurusUser{}, err
 	}
 	return YtsaurusUser{
-		Username:   a.buildUsername(sourceUser),
-		SourceType: &sourceType,
-		SourceRaw:  sourceRaw,
+		Username:  a.buildUsername(sourceUser),
+		SourceRaw: sourceRaw,
 		// If we have Source user —> he is not banned.
 		BannedSince: time.Time{},
 	}, nil
 }
 
 func (a *App) buildYtsaurusGroup(sourceGroup SourceGroup) (YtsaurusGroup, error) {
-	sourceType := string(sourceGroup.GetSourceType())
 	sourceRaw, err := sourceGroup.GetRaw()
 	if err != nil {
 		return YtsaurusGroup{}, err
 	}
 
 	return YtsaurusGroup{
-		Name:       a.buildGroupName(sourceGroup),
-		SourceType: &sourceType,
-		SourceRaw:  sourceRaw,
+		Name:      a.buildGroupName(sourceGroup),
+		SourceRaw: sourceRaw,
 	}, nil
 }
 

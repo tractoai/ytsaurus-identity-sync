@@ -76,8 +76,8 @@ type YtsaurusConfig struct {
 	DebugUsernames []string `yaml:"debug_usernames"`
 	// DebugGroupnames is a list of YTsaurus groupnames for which app will print more debug info in logs.
 	DebugGroupnames []string `yaml:"debug_groupnames"`
-
-	SourceAttributeName *string `yaml:"source_attribute_name"`
+	// The attribute name of user/group object in YTsaurus.
+	SourceAttributeName string `yaml:"source_attribute_name"`
 }
 
 type LoggingConfig struct {

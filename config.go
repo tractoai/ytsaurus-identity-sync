@@ -48,11 +48,11 @@ type AzureConfig struct {
 	UsersFilter string `yaml:"users_filter"`
 	// GroupsFilter is MS Graph $filter value used for group fetching requests.
 	// See https://learn.microsoft.com/en-us/graph/api/group-list
-	GroupsFilter string        `yaml:"groups_filter"`
-	Timeout      time.Duration `yaml:"timeout"`
+	GroupsFilter string `yaml:"groups_filter"`
 
 	// GroupsDisplayNameSuffixPostFilter applied to the fetched groups display names.
-	GroupsDisplayNameSuffixPostFilter string `yaml:"groups_display_name_suffix_post_filter"`
+	GroupsDisplayNameSuffixPostFilter string        `yaml:"groups_display_name_suffix_post_filter"`
+	Timeout                           time.Duration `yaml:"timeout"`
 
 	// DebugAzureIDs is a list of ids for which app will print more debug info in logs.
 	DebugAzureIDs []string `yaml:"debug_azure_ids"`

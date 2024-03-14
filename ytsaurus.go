@@ -17,6 +17,7 @@ import (
 const (
 	defaultYtsaurusTimeout      = 3 * time.Second
 	defaultYtsaurusSecretEnvVar = "YT_TOKEN"
+	defaultSourceAttributeName  = "source"
 )
 
 type Ytsaurus struct {
@@ -64,7 +65,7 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 		cfg.Timeout = defaultYtsaurusTimeout
 	}
 	if cfg.SourceAttributeName == "" {
-		cfg.SourceAttributeName = "source"
+		cfg.SourceAttributeName = defaultSourceAttributeName
 	}
 	return &Ytsaurus{
 		client:        client,

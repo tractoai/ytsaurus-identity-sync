@@ -186,6 +186,7 @@ func (a *App) syncGroups(usersMap map[ObjectID]YtsaurusUser) error {
 			// TODO: alerts
 		}
 	}
+
 	a.logger.Infow("Finish syncing group memberships",
 		"added", len(diff.membersToAdd)-addMemberErrCount,
 		"add_errors", addMemberErrCount,
@@ -203,11 +204,6 @@ type groupDiff struct {
 	membersToRemove []YtsaurusMembership
 }
 
-type existedGroup struct {
-	ytsaurusGroup YtsaurusGroupWithMembers
-	sourceGroup   SourceGroup
-}
-
 func (a *App) diffGroups(
 	sourceGroups []SourceGroupWithMembers,
 	ytGroups []YtsaurusGroupWithMembers,
@@ -222,18 +218,18 @@ func (a *App) diffGroups(
 		sourceGroupsWithMembersMap[group.SourceGroup.GetID()] = group
 	}
 
-	existedGroupsWithMembersMap := make(map[ObjectID]existedGroup)
+	ytGroupsWithMembersMap := make(map[ObjectID]YtsaurusGroupWithMembers)
 	for _, group := range ytGroups {
 		sourceGroup, err := a.buildSourceGroup(&group)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create azure group from source")
 		}
-		existedGroupsWithMembersMap[sourceGroup.GetID()] = existedGroup{group, sourceGroup}
+		ytGroupsWithMembersMap[sourceGroup.GetID()] = group
 	}
 
 	// Collecting groups to create (the ones that exist in Source but not in YTsaurus).
 	for objectID, sourceGroupWithMembers := range sourceGroupsWithMembersMap {
-		if _, ok := existedGroupsWithMembersMap[objectID]; !ok {
+		if _, ok := ytGroupsWithMembersMap[objectID]; !ok {
 			newYtsaurusGroup, err := a.buildYtsaurusGroup(sourceGroupWithMembers.SourceGroup)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to build Ytsaurus group")
@@ -248,22 +244,22 @@ func (a *App) diffGroups(
 		}
 	}
 
-	for objectID, ytGroupWithMembers := range existedGroupsWithMembersMap {
+	for objectID, ytGroupWithMembers := range ytGroupsWithMembersMap {
 		// Collecting groups to remove (the ones that exist in YTsaurus and not in Azure).
 		sourceGroupWithMembers, ok := sourceGroupsWithMembersMap[objectID]
 		if !ok {
-			groupsToRemove = append(groupsToRemove, ytGroupWithMembers.ytsaurusGroup.YtsaurusGroup)
+			groupsToRemove = append(groupsToRemove, ytGroupWithMembers.YtsaurusGroup)
 			continue
 		}
 
 		// Collecting groups with changed Source fields (actually we have only displayName for now which
 		// should change, though we still handle that just in case).
-		groupChanged, updatedYtGroup, err := a.isGroupChanged(sourceGroupWithMembers.SourceGroup, ytGroupWithMembers.ytsaurusGroup.YtsaurusGroup)
+		groupChanged, updatedYtGroup, err := a.isGroupChanged(sourceGroupWithMembers.SourceGroup, ytGroupWithMembers.YtsaurusGroup)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to check if group is changed")
 		}
 		// Group name can change after update, so we ensure that correct one is used for membership updates.
-		actualGroupname := ytGroupWithMembers.ytsaurusGroup.YtsaurusGroup.Name
+		actualGroupname := ytGroupWithMembers.YtsaurusGroup.Name
 		if groupChanged {
 			// This shouldn't happen until we add more fields in YTsaurus' group @azure attribute.
 			a.logger.Warnw(
@@ -274,7 +270,7 @@ func (a *App) diffGroups(
 			actualGroupname = updatedYtGroup.YtsaurusGroup.Name
 		}
 
-		membersCreate, membersRemove := a.isGroupMembersChanged(sourceGroupWithMembers, ytGroupWithMembers.ytsaurusGroup, usersMap)
+		membersCreate, membersRemove := a.isGroupMembersChanged(sourceGroupWithMembers, ytGroupWithMembers, usersMap)
 		for _, username := range membersCreate {
 			membersToAdd = append(membersToAdd, YtsaurusMembership{
 				GroupName: actualGroupname,
@@ -305,11 +301,6 @@ type usersDiff struct {
 	result map[ObjectID]YtsaurusUser
 }
 
-type existedUser struct {
-	ytsaurusUser YtsaurusUser
-	sourceUser   SourceUser
-}
-
 func (a *App) diffUsers(
 	sourceUsers []SourceUser,
 	ytUsers []YtsaurusUser,
@@ -317,6 +308,15 @@ func (a *App) diffUsers(
 	sourceUsersMap := make(map[ObjectID]SourceUser)
 	for _, user := range sourceUsers {
 		sourceUsersMap[user.GetID()] = user
+	}
+
+	ytUsersMap := make(map[ObjectID]YtsaurusUser)
+	for _, user := range ytUsers {
+		sourceUser, err := a.buildSourceUser(&user)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to build source user")
+		}
+		ytUsersMap[sourceUser.GetID()] = user
 	}
 
 	ytUsersFromSourceMap := make(map[ObjectID]YtsaurusUser)
@@ -330,21 +330,11 @@ func (a *App) diffUsers(
 
 	resultUsersMap := make(map[ObjectID]YtsaurusUser)
 
-	existedUsersMap := make(map[ObjectID]existedUser)
-	for _, user := range ytUsers {
-		sourceUser, err := a.buildSourceUser(&user)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to build source user")
-		}
-		existedUsersMap[sourceUser.GetID()] = existedUser{user, sourceUser}
-		resultUsersMap[sourceUser.GetID()] = user
-	}
-
 	var create, remove []YtsaurusUser
 	var update []UpdatedYtsaurusUser
 
 	for objectID, sourceUser := range sourceUsersMap {
-		if _, ok := existedUsersMap[objectID]; !ok {
+		if _, ok := ytUsersMap[objectID]; !ok {
 			ytUser, err := a.buildYtsaurusUser(sourceUser)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to create Ytsaurus user from source user")
@@ -354,13 +344,18 @@ func (a *App) diffUsers(
 		}
 	}
 
-	for objectID, user := range existedUsersMap {
-		ytUserFromSource, ok := ytUsersFromSourceMap[objectID]
+	for objectID, ytUser := range ytUsersMap {
+		sourceUser, ok := sourceUsersMap[objectID]
 		if !ok {
-			remove = append(remove, user.ytsaurusUser)
+			remove = append(remove, ytUser)
+			delete(resultUsersMap, objectID)
 			continue
 		}
-		userChanged, updatedYtUser, err := a.isUserChanged(ytUserFromSource, user.ytsaurusUser)
+		newYtUser, err := a.buildYtsaurusUser(sourceUser)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create Ytsaurus user from source user")
+		}
+		userChanged, updatedYtUser, err := a.isUserChanged(newYtUser, ytUser)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to check if user was changed")
 		}

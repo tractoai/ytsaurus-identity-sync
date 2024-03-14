@@ -311,12 +311,14 @@ func (a *App) diffUsers(
 	}
 
 	ytUsersMap := make(map[ObjectID]YtsaurusUser)
+	resultUsersMap := make(map[ObjectID]YtsaurusUser)
 	for _, user := range ytUsers {
 		sourceUser, err := a.buildSourceUser(&user)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to build source user")
 		}
 		ytUsersMap[sourceUser.GetID()] = user
+		resultUsersMap[sourceUser.GetID()] = user
 	}
 
 	ytUsersFromSourceMap := make(map[ObjectID]YtsaurusUser)
@@ -327,8 +329,6 @@ func (a *App) diffUsers(
 		}
 		ytUsersFromSourceMap[user.GetID()] = ytUser
 	}
-
-	resultUsersMap := make(map[ObjectID]YtsaurusUser)
 
 	var create, remove []YtsaurusUser
 	var update []UpdatedYtsaurusUser

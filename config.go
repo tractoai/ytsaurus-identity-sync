@@ -5,19 +5,19 @@ import (
 )
 
 type Config struct {
-	App      *AppConfig      `yaml:"app"`
-	Azure    *AzureConfig    `yaml:"azure"`
-	Ytsaurus *YtsaurusConfig `yaml:"ytsaurus"`
-	Logging  *LoggingConfig  `yaml:"logging"`
+	App      AppConfig      `yaml:"app"`
+	Ytsaurus YtsaurusConfig `yaml:"ytsaurus"`
+	Logging  LoggingConfig  `yaml:"logging"`
+
+	Azure *AzureConfig `yaml:"azure,omitempty"`
 }
 
 type AppConfig struct {
 	// SyncInterval is the interval between full synchronizations.
-	// Zero value means that auto-sync disabled (sync can be invoked only manually).
+	// If it is not speciied or value is zero than auto-sync disabled (sync can be invoked only manually).
 	SyncInterval time.Duration `yaml:"sync_interval"`
 
-	// UsernameReplacements is a list of replaces which will be applied to the userPrincipalName Azure field before
-	// using as username in Ytsaurus.
+	// UsernameReplacements is a list of replaces which will be applied to a username for source (Azure).
 	// For example, you may use it to strip off characters like @ which are not recommended for use
 	// in usernames as they are required to be escaped in YPath.
 	UsernameReplacements  []ReplacementPair `yaml:"username_replacements"`
@@ -25,10 +25,11 @@ type AppConfig struct {
 
 	// If count users or groups for planned delete in on sync cycle reaches RemoveLimit
 	// app will fail that sync cycle.
-	RemoveLimit int `yaml:"remove_limit"`
+	// No limit if it is not specified.
+	RemoveLimit int `yaml:"remove_limit,omitempty"`
 
 	// BanBeforeRemoveDuration is a duration of a graceful ban before finally removing the user from YTsaurus.
-	// Default value is 0s, which means remove straight after user was found to be missing from Azure,.
+	// If it is not specified, user will be removed straight after user was found to be missing from source (Azure).
 	BanBeforeRemoveDuration time.Duration `yaml:"ban_before_remove_duration"`
 }
 
@@ -41,12 +42,14 @@ type AzureConfig struct {
 	Tenant             string `yaml:"tenant"`
 	ClientID           string `yaml:"client_id"`
 	ClientSecretEnvVar string `yaml:"client_secret_env_var"` // default: "AZURE_CLIENT_SECRET"
+
 	// UsersFilter is MS Graph $filter value used for user fetching requests.
 	// See https://learn.microsoft.com/en-us/graph/api/user-list?#optional-query-parameters
 	UsersFilter string `yaml:"users_filter"`
 	// GroupsFilter is MS Graph $filter value used for group fetching requests.
 	// See https://learn.microsoft.com/en-us/graph/api/group-list
 	GroupsFilter string `yaml:"groups_filter"`
+
 	// GroupsDisplayNameSuffixPostFilter applied to the fetched groups display names.
 	GroupsDisplayNameSuffixPostFilter string        `yaml:"groups_display_name_suffix_post_filter"`
 	Timeout                           time.Duration `yaml:"timeout"`
@@ -73,6 +76,8 @@ type YtsaurusConfig struct {
 	DebugUsernames []string `yaml:"debug_usernames"`
 	// DebugGroupnames is a list of YTsaurus groupnames for which app will print more debug info in logs.
 	DebugGroupnames []string `yaml:"debug_groupnames"`
+	// The attribute name of user/group object in YTsaurus.
+	SourceAttributeName string `yaml:"source_attribute_name"`
 }
 
 type LoggingConfig struct {

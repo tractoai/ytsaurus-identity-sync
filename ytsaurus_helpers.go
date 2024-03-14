@@ -12,12 +12,17 @@ import (
 
 // Lower level functions for reusing in tests.
 
-func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUser, error) {
+const (
+	bannedSinceAttributeName = "banned_since"
+	bannedAttributeName      = "banned"
+	membersAttributeName     = "members"
+	nameAttributeName        = "name"
+)
+
+func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client, sourceAttributeName string) ([]YtsaurusUser, error) {
 	type YtsaurusUserResponse struct {
-		Name        string            `yson:",value"`
-		Azure       map[string]string `yson:"azure,attr"`
-		Banned      bool              `yson:"banned,attr"`
-		BannedSince string            `yson:"banned_since,attr"`
+		Name  string         `yson:",value"`
+		Attrs map[string]any `yson:",attrs"`
 	}
 
 	var response []YtsaurusUserResponse
@@ -27,9 +32,9 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 		&response,
 		&yt.ListNodeOptions{
 			Attributes: []string{
-				"azure",
-				"banned",
-				"banned_since",
+				bannedAttributeName,
+				bannedSinceAttributeName,
+				sourceAttributeName,
 			},
 		},
 	)
@@ -39,32 +44,31 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client) ([]YtsaurusUse
 
 	var users []YtsaurusUser
 	for _, ytUser := range response {
-		var bannedSince time.Time
-		if ytUser.BannedSince != "" {
-			bannedSince, err = time.Parse(appTimeFormat, ytUser.BannedSince)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to parse @banned_since. %v", ytUser)
+		user := YtsaurusUser{
+			Username: ytUser.Name,
+		}
+
+		if ytUser.Attrs != nil {
+			if bannedSinceRaw, ok := ytUser.Attrs[bannedSinceAttributeName]; ok && bannedSinceRaw != "" {
+				user.BannedSince, err = time.Parse(appTimeFormat, bannedSinceRaw.(string))
+				if err != nil {
+					return nil, errors.Wrapf(err, "failed to parse @banned_since. %v", ytUser)
+				}
+			}
+			if sourceRaw, ok := ytUser.Attrs[sourceAttributeName]; ok {
+				user.SourceRaw = sourceRaw.(map[string]any)
 			}
 		}
-		users = append(users, YtsaurusUser{
-			Username:      ytUser.Name,
-			AzureID:       ytUser.Azure["id"],
-			PrincipalName: ytUser.Azure["principal_name"],
-			Email:         ytUser.Azure["email"],
-			FirstName:     ytUser.Azure["first_name"],
-			LastName:      ytUser.Azure["last_name"],
-			DisplayName:   ytUser.Azure["display_name"],
-			BannedSince:   bannedSince,
-		})
+
+		users = append(users, user)
 	}
 	return users, nil
 }
 
-func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client) ([]YtsaurusGroupWithMembers, error) {
+func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client, sourceAttributeName string) ([]YtsaurusGroupWithMembers, error) {
 	type YtsaurusGroupReponse struct {
-		Name    string            `yson:",value"`
-		Azure   map[string]string `yson:"azure,attr"`
-		Members []string          `yson:"members,attr"`
+		Name  string         `yson:",value"`
+		Attrs map[string]any `yson:",attrs"`
 	}
 
 	var response []YtsaurusGroupReponse
@@ -73,36 +77,47 @@ func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client) ([
 		ypath.Path("//sys/groups"),
 		&response,
 		&yt.ListNodeOptions{
-			Attributes: []string{"members", "azure"},
+			Attributes: []string{
+				membersAttributeName,
+				sourceAttributeName,
+			},
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	var users []YtsaurusGroupWithMembers
+	var groups []YtsaurusGroupWithMembers
 	for _, ytGroup := range response {
 		members := NewStringSet()
-		for _, m := range ytGroup.Members {
-			members.Add(m)
+
+		group := YtsaurusGroup{Name: ytGroup.Name}
+
+		if ytGroup.Attrs != nil {
+			if membersRaw, ok := ytGroup.Attrs[membersAttributeName]; ok {
+				for _, m := range membersRaw.([]interface{}) {
+					members.Add(m.(string))
+				}
+			}
+
+			if sourceRaw, ok := ytGroup.Attrs[sourceAttributeName]; ok {
+				group.SourceRaw = sourceRaw.(map[string]any)
+			}
 		}
-		users = append(users, YtsaurusGroupWithMembers{
-			YtsaurusGroup: YtsaurusGroup{
-				Name:        ytGroup.Name,
-				AzureID:     ytGroup.Azure["id"],
-				DisplayName: ytGroup.Azure["display_name"],
-			},
-			Members: members,
+
+		groups = append(groups, YtsaurusGroupWithMembers{
+			YtsaurusGroup: group,
+			Members:       members,
 		})
 	}
-	return users, nil
+	return groups, nil
 }
 
 func doCreateYtsaurusUser(ctx context.Context, client yt.Client, username string, attrs map[string]any) error {
 	if attrs == nil {
 		attrs = make(map[string]any)
 	}
-	attrs["name"] = username
+	attrs[nameAttributeName] = username
 	_, err := client.CreateObject(
 		ctx,
 		yt.NodeUser,
@@ -115,7 +130,7 @@ func doCreateYtsaurusGroup(ctx context.Context, client yt.Client, name string, a
 	if attrs == nil {
 		attrs = make(map[string]any)
 	}
-	attrs["name"] = name
+	attrs[nameAttributeName] = name
 	_, err := client.CreateObject(
 		ctx,
 		yt.NodeGroup,
@@ -142,48 +157,27 @@ func doRemoveMemberYtsaurusGroup(ctx context.Context, client yt.Client, username
 	)
 }
 
-func buildUserAzureAttributeValue(user YtsaurusUser) map[string]string {
-	return map[string]string{
-		"id":             user.AzureID,
-		"email":          user.Email,
-		"principal_name": user.PrincipalName,
-		"first_name":     user.FirstName,
-		"last_name":      user.LastName,
-		"display_name":   user.DisplayName,
-	}
-}
-
-func buildUserAttributes(user YtsaurusUser) map[string]any {
+func buildUserAttributes(user YtsaurusUser, sourceAttributeName string) map[string]any {
 	return map[string]any{
-		"azure":        buildUserAzureAttributeValue(user),
-		"name":         user.Username,
-		"banned_since": user.BannedSinceString(),
-		"banned":       user.IsBanned(),
+		nameAttributeName:        user.Username,
+		bannedSinceAttributeName: user.BannedSinceString(),
+		bannedAttributeName:      user.IsBanned(),
+		sourceAttributeName:      user.SourceRaw,
 	}
 }
 
-func buildGroupAzureAttributeValue(group YtsaurusGroup) map[string]string {
-	return map[string]string{
-		"id":           group.AzureID,
-		"display_name": group.DisplayName,
-	}
-}
-
-func buildGroupAttributes(group YtsaurusGroup) map[string]any {
+func buildGroupAttributes(group YtsaurusGroup, sourceAttributeName string) map[string]any {
 	return map[string]any{
-		"azure": map[string]string{
-			"id":           group.AzureID,
-			"display_name": group.DisplayName,
-		},
-		"name": group.Name,
+		sourceAttributeName: group.SourceRaw,
+		nameAttributeName:   group.Name,
 	}
 }
 
 // nolint: unused
-func doSetAzureAttributeForYtsaurusUser(ctx context.Context, client yt.Client, username string, attrValue map[string]string) error {
+func doSetAzureAttributeForYtsaurusUser(ctx context.Context, client yt.Client, username string, attrName string, attrValue any) error {
 	return client.SetNode(
 		ctx,
-		ypath.Path("//sys/users/"+username+"/@azure"),
+		ypath.Path("//sys/users/"+username+"/@"+attrName),
 		attrValue,
 		nil,
 	)
@@ -192,7 +186,7 @@ func doSetAzureAttributeForYtsaurusUser(ctx context.Context, client yt.Client, u
 func doSetAttributesForYtsaurusUser(ctx context.Context, client yt.Client, username string, attrs map[string]any) error {
 	attrsCopy := make(map[string]any)
 	for key, value := range attrs {
-		if key == "name" && value == username {
+		if key == nameAttributeName && value == username {
 			// multiset_attributes returns an error:
 			// `setting builtin attribute "name" ... user ... already exists`
 			// on attempt to set same name for the existing user.
@@ -210,10 +204,16 @@ func doSetAttributesForYtsaurusUser(ctx context.Context, client yt.Client, usern
 }
 
 // nolint: unused
-func doSetAzureAttributeForYtsaurusGroup(ctx context.Context, client yt.Client, groupname string, attrValue map[string]string) error {
+func doSetAzureAttributeForYtsaurusGroup(
+	ctx context.Context,
+	client yt.Client,
+	groupname string,
+	attrName string,
+	attrValue map[string]string,
+) error {
 	return client.SetNode(
 		ctx,
-		ypath.Path("//sys/groups/"+groupname+"/@azure"),
+		ypath.Path("//sys/groups/"+groupname+"/@"+attrName),
 		attrValue,
 		nil,
 	)

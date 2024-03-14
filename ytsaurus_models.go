@@ -6,23 +6,14 @@ import (
 
 type YtsaurusUser struct {
 	// Username is a unique @name attribute of a user.
-	Username string
-	// AzureID is non-human readable string like 2cd8a70c-9044-4488-b06a-c8461c39b296.
-	AzureID string
-	// PrincipalName is a unique human-readable login.
-	// It could be in form of email, but doesn't give guarantee that such email exists.
-	PrincipalName string
-	// Email is filled if Azure user has email.
-	Email       string
-	FirstName   string
-	LastName    string
-	DisplayName string
+	Username    string
+	SourceRaw   map[string]any
 	BannedSince time.Time
 }
 
 // IsManuallyManaged true if user doesn't have @azure attribute (system or manually created user).
 func (u YtsaurusUser) IsManuallyManaged() bool {
-	return u.AzureID == ""
+	return u.SourceRaw == nil
 }
 
 func (u YtsaurusUser) IsBanned() bool {
@@ -38,9 +29,13 @@ func (u YtsaurusUser) BannedSinceString() string {
 
 type YtsaurusGroup struct {
 	// Name is a unique @name attribute of a group.
-	Name        string
-	AzureID     string
-	DisplayName string
+	Name      string
+	SourceRaw map[string]any
+}
+
+// IsManuallyManaged true if group doesn't have @azure attribute (system or manually created group).
+func (g YtsaurusGroup) IsManuallyManaged() bool {
+	return g.SourceRaw == nil
 }
 
 type YtsaurusGroupWithMembers struct {
@@ -56,9 +51,4 @@ func NewEmptyYtsaurusGroupWithMembers(group YtsaurusGroup) YtsaurusGroupWithMemb
 type YtsaurusMembership struct {
 	GroupName string
 	Username  string
-}
-
-// IsManuallyManaged true if group doesn't have @azure attribute (system or manually created group).
-func (u YtsaurusGroup) IsManuallyManaged() bool {
-	return u.AzureID == ""
 }

@@ -18,12 +18,10 @@ import (
 
 const (
 	scope                    = "https://graph.microsoft.com/.default"
+	msgraphExpandLimit       = 20
 	defaultAzureTimeout      = 3 * time.Second
 	defaultAzureSecretEnvVar = "AZURE_CLIENT_SECRET"
-	msgraphExpandLimit       = 20
 )
-
-type AzureID = string
 
 var (
 	defaultUserFieldsToSelect = []string{
@@ -40,33 +38,6 @@ var (
 		"displayName",
 	}
 )
-
-type AzureUser struct {
-	// PrincipalName is unique human-readable Azure user field, used (possibly with changes)
-	// for the corresponding YTsaurus user's `name` attribute.
-	PrincipalName string
-
-	AzureID     AzureID
-	Email       string
-	FirstName   string
-	LastName    string
-	DisplayName string
-}
-
-type AzureGroup struct {
-	// Identity is unique human-readable Azure user field, used (possibly with changes)
-	// for the corresponding YTsaurus user's `name` attribute.
-	Identity string
-
-	AzureID     AzureID
-	DisplayName string
-}
-
-type AzureGroupWithMembers struct {
-	AzureGroup
-	// Members is a set of strings, representing users' AzureID.
-	Members StringSet
-}
 
 type AzureReal struct {
 	graphClient *msgraphsdk.GraphServiceClient
@@ -129,7 +100,15 @@ func handleNil[T any](s *T) T {
 	return result
 }
 
-func (a *AzureReal) GetUsers() ([]AzureUser, error) {
+func (a *AzureReal) CreateUserFromRaw(raw map[string]any) (SourceUser, error) {
+	return NewAzureUser(raw)
+}
+
+func (a *AzureReal) CreateGroupFromRaw(raw map[string]any) (SourceGroup, error) {
+	return NewAzureGroup(raw)
+}
+
+func (a *AzureReal) GetUsers() ([]SourceUser, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	defer cancel()
 
@@ -139,7 +118,7 @@ func (a *AzureReal) GetUsers() ([]AzureUser, error) {
 	}
 
 	usersSkipped := 0
-	var users []AzureUser
+	var users []SourceUser
 	for _, user := range usersRaw {
 		principalName := handleNil(user.GetUserPrincipalName())
 		id := handleNil(user.GetId())
@@ -177,7 +156,7 @@ func (a *AzureReal) GetUsers() ([]AzureUser, error) {
 	return users, nil
 }
 
-func (a *AzureReal) GetGroupsWithMembers() ([]AzureGroupWithMembers, error) {
+func (a *AzureReal) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	defer cancel()
 
@@ -187,7 +166,7 @@ func (a *AzureReal) GetGroupsWithMembers() ([]AzureGroupWithMembers, error) {
 	}
 
 	groupsSkipped := 0
-	var groups []AzureGroupWithMembers
+	var groups []SourceGroupWithMembers
 	for _, group := range groupsRaw {
 		displayName := handleNil(group.GetDisplayName())
 		id := handleNil(group.GetId())
@@ -225,8 +204,8 @@ func (a *AzureReal) GetGroupsWithMembers() ([]AzureGroupWithMembers, error) {
 		a.maybePrintDebugLogs(id, "azure_members_count", len(memberIDs.ToSlice()))
 
 		groups = append(groups,
-			AzureGroupWithMembers{
-				AzureGroup: AzureGroup{
+			SourceGroupWithMembers{
+				SourceGroup: AzureGroup{
 					Identity:    displayName,
 					AzureID:     id,
 					DisplayName: displayName,
@@ -239,7 +218,7 @@ func (a *AzureReal) GetGroupsWithMembers() ([]AzureGroupWithMembers, error) {
 	return groups, nil
 }
 
-func (a *AzureReal) maybePrintDebugLogs(id AzureID, args ...any) {
+func (a *AzureReal) maybePrintDebugLogs(id ObjectID, args ...any) {
 	args = append([]any{"id", id}, args...)
 	for _, debugID := range a.debugAzureIDs {
 		if id == debugID {

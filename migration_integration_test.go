@@ -61,7 +61,7 @@ func TestUsersMigration(t *testing.T) {
 	t.Log("Got", len(ytUsersToUpdate), "users to update")
 
 	for username, user := range ytUsersToUpdate {
-		attrValue := buildUserAzureAttributeValue(user)
+		attrValue := user.SourceUser
 
 		if dryRun {
 			t.Log("[DRY-RUN] will set @azure=", attrValue, "for", username)
@@ -73,6 +73,7 @@ func TestUsersMigration(t *testing.T) {
 			context.Background(),
 			yt.client,
 			username,
+			"azure",
 			attrValue,
 		)
 		require.NoError(t, err)
@@ -125,7 +126,7 @@ func TestGroupsMigration(t *testing.T) {
 	t.Log("Got", len(ytGroupsToUpdate), "groups to update")
 
 	for groupname, group := range ytGroupsToUpdate {
-		attrValue := buildGroupAzureAttributeValue(group)
+		attrValue := group
 		if dryRun {
 			t.Log("[DRY-RUN] will set @azure=", attrValue, "for", groupname)
 			continue
@@ -136,6 +137,7 @@ func TestGroupsMigration(t *testing.T) {
 			context.Background(),
 			yt.client,
 			groupname,
+			"azure",
 			attrValue,
 		)
 		require.NoError(t, err)

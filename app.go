@@ -6,12 +6,18 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"k8s.io/utils/clock"
 )
 
-type Azure interface {
-	GetUsers() ([]AzureUser, error)
-	GetGroupsWithMembers() ([]AzureGroupWithMembers, error)
+type ObjectID = string
+
+type Source interface {
+	GetUsers() ([]SourceUser, error)
+	GetGroupsWithMembers() ([]SourceGroupWithMembers, error)
+	CreateUserFromRaw(raw map[string]any) (SourceUser, error)
+	CreateGroupFromRaw(raw map[string]any) (SourceGroup, error)
 }
 
 type App struct {
@@ -22,7 +28,7 @@ type App struct {
 	banDuration       time.Duration
 
 	ytsaurus *Ytsaurus
-	azure    Azure
+	source   Source
 
 	stopCh chan struct{}
 	sigCh  chan os.Signal
@@ -30,17 +36,21 @@ type App struct {
 }
 
 func NewApp(cfg *Config, logger appLoggerType) (*App, error) {
-	azure, err := NewAzureReal(cfg.Azure, logger)
+	if cfg.Azure == nil {
+		return nil, errors.New("one and only one source should be specified")
+	}
+
+	source, err := NewAzureReal(cfg.Azure, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewAppCustomized(cfg, logger, azure, clock.RealClock{})
+	return NewAppCustomized(cfg, logger, source, clock.RealClock{})
 }
 
 // NewAppCustomized used in tests.
-func NewAppCustomized(cfg *Config, logger appLoggerType, azure Azure, clock clock.PassiveClock) (*App, error) {
-	yt, err := NewYtsaurus(cfg.Ytsaurus, logger, clock)
+func NewAppCustomized(cfg *Config, logger appLoggerType, source Source, clock clock.PassiveClock) (*App, error) {
+	yt, err := NewYtsaurus(&cfg.Ytsaurus, logger, clock)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +66,7 @@ func NewAppCustomized(cfg *Config, logger appLoggerType, azure Azure, clock cloc
 		banDuration:       cfg.App.BanBeforeRemoveDuration,
 
 		ytsaurus: yt,
-		azure:    azure,
+		source:   source,
 
 		stopCh: make(chan struct{}),
 		sigCh:  sigCh,
@@ -83,7 +93,7 @@ func (a *App) Start() {
 		}
 	} else {
 		a.logger.Info(
-			"app.sync_interval config variable is not greater than zero, " +
+			"app.sync_interval config variable is not specified or is not greater than zero, " +
 				"auto sync is disabled. Send SIGUSR1 for manual sync.",
 		)
 		for {

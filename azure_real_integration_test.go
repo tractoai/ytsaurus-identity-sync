@@ -86,7 +86,7 @@ func TestPrintAzureGroupsIntegrationRaw(t *testing.T) {
 	cfg, err := loadConfig("config.local.yaml")
 	require.NoError(t, err)
 
-	logger, err := configureLogger(cfg.Logging)
+	logger, err := configureLogger(&cfg.Logging)
 	require.NoError(t, err)
 	azure, err := NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)

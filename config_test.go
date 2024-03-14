@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed config.example.yaml
+//go:embed azure_config.example.yaml
 var _ embed.FS
 
-func TestConfig(t *testing.T) {
-	configPath := "config.example.yaml"
+func TestAzureConfig(t *testing.T) {
+	configPath := "azure_config.example.yaml"
 
 	cfg, err := loadConfig(configPath)
 	require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestConfig(t *testing.T) {
 	require.Equal(t, "WARN", cfg.Logging.Level)
 	require.Equal(t, true, cfg.Logging.IsProduction)
 
-	logger, err := configureLogger(cfg.Logging)
+	logger, err := configureLogger(&cfg.Logging)
 	require.NoError(t, err)
 	logger.Debugw("test logging message", "key", "val")
 }

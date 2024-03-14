@@ -18,12 +18,13 @@ func getYtsaurus(t *testing.T, ytLocal *YtsaurusLocal) *Ytsaurus {
 	require.NoError(t, os.Setenv("YT_TOKEN", ytDevToken))
 	yt, err := NewYtsaurus(
 		&YtsaurusConfig{
-			Proxy:              ytLocal.GetProxy(),
-			Timeout:            10 * time.Minute,
-			LogLevel:           "DEBUG",
-			ApplyUserChanges:   true,
-			ApplyGroupChanges:  true,
-			ApplyMemberChanges: true,
+			Proxy:               ytLocal.GetProxy(),
+			Timeout:             10 * time.Minute,
+			LogLevel:            "DEBUG",
+			ApplyUserChanges:    true,
+			ApplyGroupChanges:   true,
+			ApplyMemberChanges:  true,
+			SourceAttributeName: "azure",
 		}, getDevelopmentLogger(),
 		clock.RealClock{},
 	)
@@ -41,15 +42,23 @@ func TestUpdateUserFirstName(t *testing.T) {
 	defer func() { require.NoError(t, ytLocal.Stop()) }()
 	yt := getYtsaurus(t, ytLocal)
 
+	const azureID = "fake-az-id-old"
+
 	managedOleg := YtsaurusUser{
-		Username:  "oleg",
-		AzureID:   "fake-az-id-oleg",
-		FirstName: "Lego",
+		Username: "oleg",
+		SourceRaw: map[string]any{
+			"id":         azureID,
+			"first_name": "Lego",
+		},
 	}
 	err := yt.CreateUser(managedOleg)
 	require.NoError(t, err)
 
-	managedOleg.FirstName = "Oleg"
+	managedOleg.SourceRaw = map[string]any{
+		"id":         azureID,
+		"first_name": "Oleg",
+	}
+
 	updErr := yt.UpdateUser(managedOleg.Username, managedOleg)
 
 	ytClient, err := ytLocal.GetClient()
@@ -79,15 +88,19 @@ func TestGroups(t *testing.T) {
 
 	managedOleg := YtsaurusUser{
 		Username: "oleg",
-		AzureID:  "fake-az-id-oleg",
+		SourceRaw: map[string]any{
+			"id": "fake-az-id-oleg",
+		},
 	}
 	err = yt.CreateUser(managedOleg)
 	require.NoError(t, err)
 
 	managedOlegsGroup := YtsaurusGroup{
-		Name:        "olegs",
-		AzureID:     "fake-az-id-olegs",
-		DisplayName: "This is group is for Olegs only",
+		Name: "olegs",
+		SourceRaw: map[string]any{
+			"id":           "fake-az-id-olegs",
+			"display_name": "This is group is for Olegs only",
+		},
 	}
 	err = yt.CreateGroup(managedOlegsGroup)
 	require.NoError(t, err)
@@ -102,9 +115,11 @@ func TestGroups(t *testing.T) {
 	require.Equal(t, []YtsaurusGroupWithMembers{
 		{
 			YtsaurusGroup: YtsaurusGroup{
-				Name:        managedOlegsGroup.Name,
-				AzureID:     managedOlegsGroup.AzureID,
-				DisplayName: managedOlegsGroup.DisplayName,
+				Name: managedOlegsGroup.Name,
+				SourceRaw: map[string]any{
+					"id":           managedOlegsGroup.SourceRaw["id"],
+					"display_name": managedOlegsGroup.SourceRaw["display_name"],
+				},
 			},
 			Members: members,
 		},
@@ -118,9 +133,11 @@ func TestGroups(t *testing.T) {
 	require.Equal(t, []YtsaurusGroupWithMembers{
 		{
 			YtsaurusGroup: YtsaurusGroup{
-				Name:        managedOlegsGroup.Name,
-				AzureID:     managedOlegsGroup.AzureID,
-				DisplayName: managedOlegsGroup.DisplayName,
+				Name: managedOlegsGroup.Name,
+				SourceRaw: map[string]any{
+					"id":           managedOlegsGroup.SourceRaw["id"],
+					"display_name": managedOlegsGroup.SourceRaw["display_name"],
+				},
 			},
 			Members: NewStringSet(),
 		},

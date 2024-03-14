@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 const (
 	defaultYtsaurusTimeout      = 3 * time.Second
 	defaultYtsaurusSecretEnvVar = "YT_TOKEN"
+	defaultSourceAttributeName  = "source"
 )
 
 type Ytsaurus struct {
@@ -31,6 +33,8 @@ type Ytsaurus struct {
 
 	debugUsernames  []string
 	debugGroupnames []string
+
+	sourceAttributeName string
 }
 
 func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveClock) (*Ytsaurus, error) {
@@ -60,6 +64,9 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 	if cfg.Timeout == 0 {
 		cfg.Timeout = defaultYtsaurusTimeout
 	}
+	if cfg.SourceAttributeName == "" {
+		cfg.SourceAttributeName = defaultSourceAttributeName
+	}
 	return &Ytsaurus{
 		client:        client,
 		dryRunUsers:   !cfg.ApplyUserChanges,
@@ -70,8 +77,9 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 		timeout: cfg.Timeout,
 		clock:   clock,
 
-		debugUsernames:  cfg.DebugUsernames,
-		debugGroupnames: cfg.DebugGroupnames,
+		debugUsernames:      cfg.DebugUsernames,
+		debugGroupnames:     cfg.DebugGroupnames,
+		sourceAttributeName: cfg.SourceAttributeName,
 	}, nil
 }
 
@@ -79,7 +87,7 @@ func (y *Ytsaurus) GetUsers() ([]YtsaurusUser, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	users, err := doGetAllYtsaurusUsers(ctx, y.client)
+	users, err := doGetAllYtsaurusUsers(ctx, y.client, y.sourceAttributeName)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get ytsaurus users")
 	}
@@ -109,12 +117,13 @@ func (y *Ytsaurus) CreateUser(user YtsaurusUser) error {
 	defer cancel()
 
 	y.maybePrintExtraLogs(user.Username, "create_user", "user", user)
+
 	return doCreateYtsaurusUser(
 		ctx,
 		y.client,
 		user.Username,
 		map[string]any{
-			"azure": buildUserAzureAttributeValue(user),
+			y.sourceAttributeName: user.SourceRaw,
 		},
 	)
 }
@@ -142,7 +151,7 @@ func (y *Ytsaurus) UpdateUser(username string, user YtsaurusUser) error {
 		ctx,
 		y.client,
 		username,
-		buildUserAttributes(user),
+		buildUserAttributes(user, y.sourceAttributeName),
 	)
 }
 
@@ -198,7 +207,7 @@ func (y *Ytsaurus) GetGroupsWithMembers() ([]YtsaurusGroupWithMembers, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	groups, err := doGetAllYtsaurusGroupsWithMembers(ctx, y.client)
+	groups, err := doGetAllYtsaurusGroupsWithMembers(ctx, y.client, y.sourceAttributeName)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get ytsaurus groups")
 	}
@@ -233,7 +242,7 @@ func (y *Ytsaurus) CreateGroup(group YtsaurusGroup) error {
 		y.client,
 		group.Name,
 		map[string]any{
-			"azure": buildGroupAzureAttributeValue(group),
+			y.sourceAttributeName: group.SourceRaw,
 		},
 	)
 }
@@ -260,7 +269,7 @@ func (y *Ytsaurus) UpdateGroup(groupname string, group YtsaurusGroup) error {
 		ctx,
 		y.client,
 		groupname,
-		buildGroupAttributes(group),
+		buildGroupAttributes(group, y.sourceAttributeName),
 	)
 }
 
@@ -332,12 +341,11 @@ func (y *Ytsaurus) isUserManaged(username string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	attrExists, err := y.client.NodeExists(
+	return y.client.NodeExists(
 		ctx,
-		ypath.Path("//sys/users/"+username+"/@azure"),
+		ypath.Path(fmt.Sprintf("//sys/users/%v/@%v", username, y.sourceAttributeName)),
 		nil,
 	)
-	return attrExists, err
 }
 
 func (y *Ytsaurus) ensureUserManaged(username string) error {
@@ -355,12 +363,11 @@ func (y *Ytsaurus) isGroupManaged(name string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	attrExists, err := y.client.NodeExists(
+	return y.client.NodeExists(
 		ctx,
-		ypath.Path("//sys/groups/"+name+"/@azure"),
+		ypath.Path(fmt.Sprintf("//sys/groups/%v/@%v", name, y.sourceAttributeName)),
 		nil,
 	)
-	return attrExists, err
 }
 
 func (y *Ytsaurus) ensureGroupManaged(groupname string) error {

@@ -1,13 +1,34 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"time"
 
+	"go.ytsaurus.tech/yt/go/yson"
+
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
+
+type SourceUser interface {
+	GetID() ObjectID
+	GetName() string
+	GetRaw() (map[string]any, error)
+}
+
+type SourceGroup interface {
+	GetID() ObjectID
+	GetName() string
+	GetRaw() (map[string]any, error)
+}
+
+type SourceGroupWithMembers struct {
+	SourceGroup SourceGroup
+	// Members is a set of strings, representing users' ObjectID.
+	Members StringSet
+}
 
 func (a *App) syncOnce() {
 	a.logger.Info("Start syncing")
@@ -31,30 +52,27 @@ func (a *App) isRemoveLimitReached(objectsCount int) bool {
 	return objectsCount >= a.removeLimit
 }
 
-// syncUsers syncs AD users with YTsaurus cluster and returns /actual/ map[AzureID]YtsaurusUser
+// syncUsers syncs AD users with YTsaurus cluster and returns /actual/ map[ObjectID]YtsaurusUser
 // after applying changes.
-func (a *App) syncUsers() (map[AzureID]YtsaurusUser, error) {
+func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 	a.logger.Info("Start syncing users")
-	azureUsers, err := a.azure.GetUsers()
+	var err error
+	var sourceUsers []SourceUser
+
+	sourceUsers, err = a.source.GetUsers()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get Azure users")
+		return nil, errors.Wrap(err, "failed to get Source users")
 	}
+
 	ytUsers, err := a.ytsaurus.GetUsers()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get YTsaurus users")
 	}
 
-	azureUsersMap := make(map[AzureID]AzureUser)
-	ytUsersMap := make(map[AzureID]YtsaurusUser)
-
-	for _, user := range azureUsers {
-		azureUsersMap[user.AzureID] = user
+	diff, err := a.diffUsers(sourceUsers, ytUsers)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to calculate users diff")
 	}
-	for _, user := range ytUsers {
-		ytUsersMap[user.AzureID] = user
-	}
-
-	diff := a.diffUsers(azureUsersMap, ytUsersMap)
 	if a.isRemoveLimitReached(len(diff.remove)) {
 		return nil, fmt.Errorf("delete limit in one cycle reached: %d %v", len(diff.remove), diff)
 	}
@@ -73,8 +91,6 @@ func (a *App) syncUsers() (map[AzureID]YtsaurusUser, error) {
 		if wasRemoved {
 			removedCount++
 		}
-		// Actualizing user map for group sync later.
-		delete(ytUsersMap, user.AzureID)
 	}
 	for _, user := range diff.create {
 		err = a.ytsaurus.CreateUser(user)
@@ -82,8 +98,6 @@ func (a *App) syncUsers() (map[AzureID]YtsaurusUser, error) {
 			createErrCount++
 			a.logger.Errorw("failed to create user", zap.Error(err), "user", user)
 		}
-		// Actualizing user map for group sync later.
-		ytUsersMap[user.AzureID] = user
 	}
 	for _, updatedUser := range diff.update {
 		err = a.ytsaurus.UpdateUser(updatedUser.OldUsername, updatedUser.YtsaurusUser)
@@ -91,8 +105,6 @@ func (a *App) syncUsers() (map[AzureID]YtsaurusUser, error) {
 			updateErrCount++
 			a.logger.Errorw("failed to update user", zap.Error(err), "user", updatedUser)
 		}
-		// Actualizing user map for group sync later.
-		ytUsersMap[updatedUser.AzureID] = updatedUser.YtsaurusUser
 	}
 	a.logger.Infow("Finish syncing users",
 		"created", len(diff.create)-createErrCount,
@@ -103,21 +115,24 @@ func (a *App) syncUsers() (map[AzureID]YtsaurusUser, error) {
 		"banned", bannedCount,
 		"ban_or_remove_errors", banOrremoveErrCount,
 	)
-	return ytUsersMap, nil
+	return diff.result, nil
 }
 
-func (a *App) syncGroups(usersMap map[AzureID]YtsaurusUser) error {
+func (a *App) syncGroups(usersMap map[ObjectID]YtsaurusUser) error {
 	a.logger.Info("Start syncing groups")
-	azureGroups, err := a.azure.GetGroupsWithMembers()
+	azureGroups, err := a.source.GetGroupsWithMembers()
 	if err != nil {
-		return errors.Wrap(err, "failed to get Azure groups")
+		return errors.Wrap(err, "failed to get Source groups")
 	}
 	ytGroups, err := a.ytsaurus.GetGroupsWithMembers()
 	if err != nil {
 		return errors.Wrap(err, "failed to get YTsaurus groups")
 	}
 
-	diff := a.diffGroups(azureGroups, ytGroups, usersMap)
+	diff, err := a.diffGroups(azureGroups, ytGroups, usersMap)
+	if err != nil {
+		return errors.Wrap(err, "failed to calculate groups diff")
+	}
 	if a.isRemoveLimitReached(len(diff.groupsToRemove)) {
 		return fmt.Errorf("delete limit in one cycle reached: %d %v", len(diff.groupsToRemove), diff)
 	}
@@ -171,6 +186,7 @@ func (a *App) syncGroups(usersMap map[AzureID]YtsaurusUser) error {
 			// TODO: alerts
 		}
 	}
+
 	a.logger.Infow("Finish syncing group memberships",
 		"added", len(diff.membersToAdd)-addMemberErrCount,
 		"add_errors", addMemberErrCount,
@@ -189,30 +205,37 @@ type groupDiff struct {
 }
 
 func (a *App) diffGroups(
-	azureGroups []AzureGroupWithMembers,
+	sourceGroups []SourceGroupWithMembers,
 	ytGroups []YtsaurusGroupWithMembers,
-	usersMap map[AzureID]YtsaurusUser,
-) groupDiff {
+	usersMap map[ObjectID]YtsaurusUser,
+) (*groupDiff, error) {
 	var groupsToCreate, groupsToRemove []YtsaurusGroup
 	var groupsToUpdate []UpdatedYtsaurusGroup
 	var membersToAdd, membersToRemove []YtsaurusMembership
 
-	azureGroupsWithMembersMap := make(map[AzureID]AzureGroupWithMembers)
-	ytGroupsWithMembersMap := make(map[AzureID]YtsaurusGroupWithMembers)
-
-	for _, group := range azureGroups {
-		azureGroupsWithMembersMap[group.AzureID] = group
+	sourceGroupsWithMembersMap := make(map[ObjectID]SourceGroupWithMembers)
+	for _, group := range sourceGroups {
+		sourceGroupsWithMembersMap[group.SourceGroup.GetID()] = group
 	}
+
+	ytGroupsWithMembersMap := make(map[ObjectID]YtsaurusGroupWithMembers)
 	for _, group := range ytGroups {
-		ytGroupsWithMembersMap[group.AzureID] = group
+		sourceGroup, err := a.buildSourceGroup(&group)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create azure group from source")
+		}
+		ytGroupsWithMembersMap[sourceGroup.GetID()] = group
 	}
 
-	// Collecting groups to create (the ones that exist in Azure but not in YTsaurus).
-	for azureID, azureGroupWithMembers := range azureGroupsWithMembersMap {
-		if _, ok := ytGroupsWithMembersMap[azureID]; !ok {
-			newYtsaurusGroup := a.buildYtsaurusGroup(azureGroupWithMembers.AzureGroup)
+	// Collecting groups to create (the ones that exist in Source but not in YTsaurus).
+	for objectID, sourceGroupWithMembers := range sourceGroupsWithMembersMap {
+		if _, ok := ytGroupsWithMembersMap[objectID]; !ok {
+			newYtsaurusGroup, err := a.buildYtsaurusGroup(sourceGroupWithMembers.SourceGroup)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to build Ytsaurus group")
+			}
 			groupsToCreate = append(groupsToCreate, newYtsaurusGroup)
-			for username := range a.buildYtsaurusGroupMembers(azureGroupWithMembers, usersMap).Iter() {
+			for username := range a.buildYtsaurusGroupMembers(sourceGroupWithMembers, usersMap).Iter() {
 				membersToAdd = append(membersToAdd, YtsaurusMembership{
 					GroupName: newYtsaurusGroup.Name,
 					Username:  username,
@@ -221,17 +244,20 @@ func (a *App) diffGroups(
 		}
 	}
 
-	for azureID, ytGroupWithMembers := range ytGroupsWithMembersMap {
+	for objectID, ytGroupWithMembers := range ytGroupsWithMembersMap {
 		// Collecting groups to remove (the ones that exist in YTsaurus and not in Azure).
-		azureGroupWithMembers, ok := azureGroupsWithMembersMap[azureID]
+		sourceGroupWithMembers, ok := sourceGroupsWithMembersMap[objectID]
 		if !ok {
 			groupsToRemove = append(groupsToRemove, ytGroupWithMembers.YtsaurusGroup)
 			continue
 		}
 
-		// Collecting groups with changed Azure fields (actually we have only displayName for now which
+		// Collecting groups with changed Source fields (actually we have only displayName for now which
 		// should change, though we still handle that just in case).
-		groupChanged, updatedYtGroup := a.isGroupChanged(azureGroupWithMembers.AzureGroup, ytGroupWithMembers.YtsaurusGroup)
+		groupChanged, updatedYtGroup, err := a.isGroupChanged(sourceGroupWithMembers.SourceGroup, ytGroupWithMembers.YtsaurusGroup)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to check if group is changed")
+		}
 		// Group name can change after update, so we ensure that correct one is used for membership updates.
 		actualGroupname := ytGroupWithMembers.YtsaurusGroup.Name
 		if groupChanged {
@@ -244,7 +270,7 @@ func (a *App) diffGroups(
 			actualGroupname = updatedYtGroup.YtsaurusGroup.Name
 		}
 
-		membersCreate, membersRemove := a.isGroupMembersChanged(azureGroupWithMembers, ytGroupWithMembers, usersMap)
+		membersCreate, membersRemove := a.isGroupMembersChanged(sourceGroupWithMembers, ytGroupWithMembers, usersMap)
 		for _, username := range membersCreate {
 			membersToAdd = append(membersToAdd, YtsaurusMembership{
 				GroupName: actualGroupname,
@@ -259,95 +285,149 @@ func (a *App) diffGroups(
 		}
 	}
 
-	return groupDiff{
+	return &groupDiff{
 		groupsToCreate:  groupsToCreate,
 		groupsToUpdate:  groupsToUpdate,
 		groupsToRemove:  groupsToRemove,
 		membersToAdd:    membersToAdd,
 		membersToRemove: membersToRemove,
-	}
+	}, nil
 }
 
 type usersDiff struct {
 	create []YtsaurusUser
 	update []UpdatedYtsaurusUser
 	remove []YtsaurusUser
+	result map[ObjectID]YtsaurusUser
 }
 
 func (a *App) diffUsers(
-	azureUsersMap map[AzureID]AzureUser,
-	ytUsersMap map[AzureID]YtsaurusUser,
-) usersDiff {
+	sourceUsers []SourceUser,
+	ytUsers []YtsaurusUser,
+) (*usersDiff, error) {
+	sourceUsersMap := make(map[ObjectID]SourceUser)
+	for _, user := range sourceUsers {
+		sourceUsersMap[user.GetID()] = user
+	}
+
+	ytUsersMap := make(map[ObjectID]YtsaurusUser)
+	resultUsersMap := make(map[ObjectID]YtsaurusUser)
+	for _, user := range ytUsers {
+		sourceUser, err := a.buildSourceUser(&user)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to build source user")
+		}
+		ytUsersMap[sourceUser.GetID()] = user
+		resultUsersMap[sourceUser.GetID()] = user
+	}
+
 	var create, remove []YtsaurusUser
 	var update []UpdatedYtsaurusUser
 
-	for azureID, azureUser := range azureUsersMap {
-		if _, ok := ytUsersMap[azureID]; !ok {
-			create = append(create, a.buildYtsaurusUser(azureUser))
+	for objectID, sourceUser := range sourceUsersMap {
+		if _, ok := ytUsersMap[objectID]; !ok {
+			ytUser, err := a.buildYtsaurusUser(sourceUser)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to create Ytsaurus user from source user")
+			}
+			create = append(create, ytUser)
+			resultUsersMap[objectID] = ytUser
 		}
 	}
-	for azureID, ytUser := range ytUsersMap {
-		azureUser, ok := azureUsersMap[azureID]
+
+	for objectID, ytUser := range ytUsersMap {
+		sourceUser, ok := sourceUsersMap[objectID]
 		if !ok {
 			remove = append(remove, ytUser)
+			delete(resultUsersMap, objectID)
 			continue
 		}
-		userChanged, updatedYtUser := a.isUserChanged(azureUser, ytUser)
+		newYtUser, err := a.buildYtsaurusUser(sourceUser)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create Ytsaurus user from source user")
+		}
+		userChanged, updatedYtUser, err := a.isUserChanged(newYtUser, ytUser)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to check if user was changed")
+		}
 		if !userChanged {
 			continue
 		}
 		update = append(update, updatedYtUser)
+		resultUsersMap[objectID] = updatedYtUser.YtsaurusUser
 	}
-	return usersDiff{
+	return &usersDiff{
 		create: create,
 		update: update,
 		remove: remove,
-	}
+		result: resultUsersMap,
+	}, nil
 }
 
-func (a *App) buildUsername(azureUser AzureUser) string {
-	username := azureUser.PrincipalName
-	for _, replace := range a.usernameReplaces {
-		username = strings.Replace(username, replace.From, replace.To, -1)
+func (a *App) buildUsername(sourceUser SourceUser) string {
+	username := sourceUser.GetName()
+	if a.usernameReplaces != nil {
+		for _, replace := range a.usernameReplaces {
+			username = strings.Replace(username, replace.From, replace.To, -1)
+		}
 	}
 	username = strings.ToLower(username)
 	return username
 }
 
-func (a *App) buildGroupName(azureGroup AzureGroup) string {
-	name := azureGroup.Identity
-	for _, replace := range a.groupnameReplaces {
-		name = strings.Replace(name, replace.From, replace.To, -1)
+func (a *App) buildGroupName(sourceGroup SourceGroup) string {
+	name := sourceGroup.GetName()
+	if a.groupnameReplaces != nil {
+		for _, replace := range a.groupnameReplaces {
+			name = strings.Replace(name, replace.From, replace.To, -1)
+		}
 	}
 	name = strings.ToLower(name)
 	return name
 }
 
-func (a *App) buildYtsaurusUser(azureUser AzureUser) YtsaurusUser {
+func (a *App) buildSourceUser(ytUser *YtsaurusUser) (SourceUser, error) {
+	if ytUser.IsManuallyManaged() {
+		return nil, errors.New("user is manually managed and can't be converted to source user")
+	}
+	return a.source.CreateUserFromRaw(ytUser.SourceRaw)
+}
+
+func (a *App) buildSourceGroup(ytGroup *YtsaurusGroupWithMembers) (SourceUser, error) {
+	if ytGroup.IsManuallyManaged() {
+		return nil, errors.New("user is manually managed and can't be converted to source user")
+	}
+	return a.source.CreateGroupFromRaw(ytGroup.SourceRaw)
+}
+
+func (a *App) buildYtsaurusUser(sourceUser SourceUser) (YtsaurusUser, error) {
+	sourceRaw, err := sourceUser.GetRaw()
+	if err != nil {
+		return YtsaurusUser{}, err
+	}
 	return YtsaurusUser{
-		Username:      a.buildUsername(azureUser),
-		AzureID:       azureUser.AzureID,
-		PrincipalName: azureUser.PrincipalName,
-		Email:         azureUser.Email,
-		FirstName:     azureUser.FirstName,
-		LastName:      azureUser.LastName,
-		DisplayName:   azureUser.DisplayName,
-		// If we have Azure user —> he is not banned.
+		Username:  a.buildUsername(sourceUser),
+		SourceRaw: sourceRaw,
+		// If we have Source user —> he is not banned.
 		BannedSince: time.Time{},
-	}
+	}, nil
 }
 
-func (a *App) buildYtsaurusGroup(azureGroup AzureGroup) YtsaurusGroup {
+func (a *App) buildYtsaurusGroup(sourceGroup SourceGroup) (YtsaurusGroup, error) {
+	sourceRaw, err := sourceGroup.GetRaw()
+	if err != nil {
+		return YtsaurusGroup{}, err
+	}
+
 	return YtsaurusGroup{
-		Name:        a.buildGroupName(azureGroup),
-		AzureID:     azureGroup.AzureID,
-		DisplayName: azureGroup.DisplayName,
-	}
+		Name:      a.buildGroupName(sourceGroup),
+		SourceRaw: sourceRaw,
+	}, nil
 }
 
-func (a *App) buildYtsaurusGroupMembers(azureGroupWithMembers AzureGroupWithMembers, usersMap map[AzureID]YtsaurusUser) StringSet {
+func (a *App) buildYtsaurusGroupMembers(sourceGroupWithMembers SourceGroupWithMembers, usersMap map[ObjectID]YtsaurusUser) StringSet {
 	members := NewStringSet()
-	for azureID := range azureGroupWithMembers.Members.Iter() {
+	for azureID := range sourceGroupWithMembers.Members.Iter() {
 		ytUser, ok := usersMap[azureID]
 		if !ok {
 			// User is unknown to the YTsaurus (can be accountEnabled=false).
@@ -366,12 +446,19 @@ type UpdatedYtsaurusUser struct {
 }
 
 // If isUserChanged detects that user is changed, it returns UpdatedYtsaurusUser.
-func (a *App) isUserChanged(azureUser AzureUser, ytUser YtsaurusUser) (bool, UpdatedYtsaurusUser) {
-	newUser := a.buildYtsaurusUser(azureUser)
-	if newUser == ytUser {
-		return false, UpdatedYtsaurusUser{}
+func (a *App) isUserChanged(newYtUser YtsaurusUser, ytUser YtsaurusUser) (bool, UpdatedYtsaurusUser, error) {
+	newSourceRaw, err := yson.Marshal(newYtUser.SourceRaw)
+	if err != nil {
+		return false, UpdatedYtsaurusUser{}, err
 	}
-	return true, UpdatedYtsaurusUser{YtsaurusUser: newUser, OldUsername: ytUser.Username}
+	oldSourceRaw, err := yson.Marshal(ytUser.SourceRaw)
+	if err != nil {
+		return false, UpdatedYtsaurusUser{}, err
+	}
+	if newYtUser.Username == ytUser.Username && bytes.Equal(newSourceRaw, oldSourceRaw) && newYtUser.BannedSince == ytUser.BannedSince {
+		return false, UpdatedYtsaurusUser{}, nil
+	}
+	return true, UpdatedYtsaurusUser{YtsaurusUser: newYtUser, OldUsername: ytUser.Username}, nil
 }
 
 // UpdatedYtsaurusGroup is a wrapper for YtsaurusGroup, because it is handy to store old groupname for update,
@@ -382,17 +469,28 @@ type UpdatedYtsaurusGroup struct {
 }
 
 // If isGroupChanged detects that group itself (not members) is changed, it returns UpdatedYtsaurusGroup.
-func (a *App) isGroupChanged(azureGroup AzureGroup, ytGroup YtsaurusGroup) (bool, UpdatedYtsaurusGroup) {
-	newGroup := a.buildYtsaurusGroup(azureGroup)
-	if newGroup.Name == ytGroup.Name && newGroup.DisplayName == ytGroup.DisplayName {
-		return false, UpdatedYtsaurusGroup{}
+func (a *App) isGroupChanged(sourceGroup SourceGroup, ytGroup YtsaurusGroup) (bool, UpdatedYtsaurusGroup, error) {
+	newGroup, err := a.buildYtsaurusGroup(sourceGroup)
+	if err != nil {
+		return false, UpdatedYtsaurusGroup{}, errors.Wrap(err, "failed to build Ytsaurus group")
 	}
-	return true, UpdatedYtsaurusGroup{YtsaurusGroup: newGroup, OldName: ytGroup.Name}
+	newSourceRaw, err := yson.Marshal(newGroup.SourceRaw)
+	if err != nil {
+		return false, UpdatedYtsaurusGroup{}, err
+	}
+	oldSourceRaw, err := yson.Marshal(ytGroup.SourceRaw)
+	if err != nil {
+		return false, UpdatedYtsaurusGroup{}, err
+	}
+	if bytes.Equal(newSourceRaw, oldSourceRaw) {
+		return false, UpdatedYtsaurusGroup{}, nil
+	}
+	return true, UpdatedYtsaurusGroup{YtsaurusGroup: newGroup, OldName: ytGroup.Name}, nil
 }
 
 // If isGroupMembersChanged detects that group members are changed, it returns lists of usernames to create and remove.
-func (a *App) isGroupMembersChanged(azureGroup AzureGroupWithMembers, ytGroup YtsaurusGroupWithMembers, usersMap map[AzureID]YtsaurusUser) (create, remove []string) {
-	newMembers := a.buildYtsaurusGroupMembers(azureGroup, usersMap)
+func (a *App) isGroupMembersChanged(sourceGroup SourceGroupWithMembers, ytGroup YtsaurusGroupWithMembers, usersMap map[ObjectID]YtsaurusUser) (create, remove []string) {
+	newMembers := a.buildYtsaurusGroupMembers(sourceGroup, usersMap)
 	oldMembers := ytGroup.Members
 
 	create = newMembers.Difference(oldMembers).ToSlice()
@@ -406,7 +504,7 @@ func (a *App) banOrRemoveUser(user YtsaurusUser) (wasBanned, wasRemoved bool, er
 		return false, true, a.ytsaurus.RemoveUser(user.Username)
 	}
 	// If user is not already banned we should do it.
-	if !user.IsBanned() && a.banDuration != 0 {
+	if !user.IsBanned() {
 		return true, false, a.ytsaurus.BanUser(user.Username)
 	}
 	// If user was banned longer than setting permits, we remove it.

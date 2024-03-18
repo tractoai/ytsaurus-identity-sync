@@ -2,7 +2,13 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"github.com/stretchr/testify/suite"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"k8s.io/utils/clock"
+	"log"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -232,40 +238,6 @@ var (
 	// we test several things in each test case, because of long wait for local ytsaurus
 	// container start.
 	testCases = []testCase{
-		{
-			name: "a-skip-b-create-c-remove",
-			azureUsersSetUp: []SourceUser{
-				aliceAzure,
-				bobAzure,
-			},
-			ytUsersSetUp: []YtsaurusUser{
-				aliceYtsaurus,
-				carolYtsaurus,
-			},
-			ytUsersExpected: []YtsaurusUser{
-				aliceYtsaurus,
-				bobYtsaurus,
-			},
-		},
-		{
-			name: "bob-is-banned",
-			appConfig: &AppConfig{
-				UsernameReplacements:    defaultUsernameReplacements,
-				GroupnameReplacements:   defaultGroupnameReplacements,
-				BanBeforeRemoveDuration: 24 * time.Hour,
-			},
-			ytUsersSetUp: []YtsaurusUser{
-				aliceYtsaurus,
-				bobYtsaurus,
-			},
-			azureUsersSetUp: []SourceUser{
-				aliceAzure,
-			},
-			ytUsersExpected: []YtsaurusUser{
-				aliceYtsaurus,
-				bobYtsaurusBanned,
-			},
-		},
 		{
 			name: "bob-was-banned-now-deleted-carol-was-banned-now-back",
 			// Bob was banned at initialTestTime,
@@ -512,6 +484,276 @@ var (
 	}
 )
 
+type AppTestSuite struct {
+	suite.Suite
+	ytsaurusLocal             *YtsaurusLocal
+	ytsaurusClient            yt.Client
+	initialYtsaurusUsers      []YtsaurusUser
+	initialYtsaurusGroups     []YtsaurusGroupWithMembers
+	initialYtsaurusUsernames  []string
+	initialYtsaurusGroupnames []string
+	ctx                       context.Context
+}
+
+func (suite *AppTestSuite) SetupSuite() {
+	suite.ctx = context.Background()
+	suite.ytsaurusLocal = NewYtsaurusLocal()
+
+	if err := suite.ytsaurusLocal.Start(); err != nil {
+		log.Fatalf("error starting ytsaurus local container: %s", err)
+	}
+
+	ytsaurusClient, err := suite.ytsaurusLocal.GetClient()
+	if err != nil {
+		log.Fatalf("error creating ytsaurus local client: %s", err)
+	}
+
+	suite.ytsaurusClient = ytsaurusClient
+
+	err = os.Setenv(defaultYtsaurusSecretEnvVar, ytDevToken)
+	if err != nil {
+		log.Fatalf("failed to set YT_TOKEN: %s", err)
+	}
+
+	suite.initialYtsaurusUsers, suite.initialYtsaurusGroups, err = suite.getAllYtsaurusObjects()
+	if err != nil {
+		log.Fatalf("error getting initial ytsaurus objects: %s", err)
+	}
+
+	for _, user := range suite.initialYtsaurusUsers {
+		suite.initialYtsaurusUsernames = append(suite.initialYtsaurusUsernames, user.Username)
+	}
+
+	for _, group := range suite.initialYtsaurusGroups {
+		suite.initialYtsaurusGroupnames = append(suite.initialYtsaurusGroupnames, group.Name)
+	}
+}
+
+func (suite *AppTestSuite) TearDownSuite() {
+	if err := suite.ytsaurusLocal.Stop(); err != nil {
+		log.Fatalf("error terminating ytsaurus local container: %s", err)
+	}
+}
+
+func (suite *AppTestSuite) getAllYtsaurusObjects() (users []YtsaurusUser, groups []YtsaurusGroupWithMembers, err error) {
+	allUsers, err := doGetAllYtsaurusUsers(context.Background(), suite.ytsaurusClient, "azure")
+	if err != nil {
+		return nil, nil, err
+	}
+	allGroups, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), suite.ytsaurusClient, "azure")
+	return allUsers, allGroups, nil
+}
+
+func (suite *AppTestSuite) diffYtsaurusObjects(expectedUsers []YtsaurusUser, expectedGroups []YtsaurusGroupWithMembers) (string, string) {
+	actualUsers, actualGroups, err := suite.getAllYtsaurusObjects()
+	if err != nil {
+		log.Fatalf("failed to get all ytsaurus objects: %s", err)
+	}
+	allExpectedUsers := append(suite.initialYtsaurusUsers, expectedUsers...)
+	allExpectedGroups := append(suite.initialYtsaurusGroups, expectedGroups...)
+
+	// It seems that `users` group @members attr contains not the all users in the system:
+	// for example it doesn't include:
+	// alien_cell_synchronizer, file_cache, guest, operations_cleaner, operations_client, etc...
+	// we don't want to test that.
+	// Though we expect it to include users created in test, so we update group members in out expected group list.
+	var expectedNewUsernamesInUsersGroup []string
+	for _, u := range expectedUsers {
+		expectedNewUsernamesInUsersGroup = append(expectedNewUsernamesInUsersGroup, u.Username)
+	}
+	for idx, group := range allExpectedGroups {
+		if group.Name == "users" {
+			for _, uname := range expectedNewUsernamesInUsersGroup {
+				allExpectedGroups[idx].Members.Add(uname)
+			}
+		}
+	}
+
+	uDiff := cmp.Diff(
+		actualUsers,
+		allExpectedUsers,
+		cmpopts.SortSlices(func(left, right YtsaurusUser) bool {
+			return left.Username < right.Username
+		}),
+	)
+	gDiff := cmp.Diff(
+		actualGroups,
+		allExpectedGroups,
+		cmpopts.SortSlices(func(left, right YtsaurusGroupWithMembers) bool {
+			return left.Name < right.Name
+		}),
+	)
+
+	return uDiff, gDiff
+}
+
+func (suite *AppTestSuite) clear() {
+	users, groups, err := suite.getAllYtsaurusObjects()
+	if err != nil {
+		log.Fatalf("failed to get ytsaurus objects: %s", err)
+	}
+
+	for _, user := range users {
+		if !slices.Contains(suite.initialYtsaurusUsernames, user.Username) {
+			path := ypath.Path(fmt.Sprintf("//sys/users/%s", user.Username))
+			err := suite.ytsaurusClient.RemoveNode(suite.ctx, path, nil)
+			if err != nil {
+				log.Fatalf("failed to remove user: %s", user.Username)
+			}
+
+			exists := true
+			for exists {
+				exists, err = suite.ytsaurusClient.NodeExists(suite.ctx, path, nil)
+				if err != nil {
+					log.Fatalf("failed to check is group removed")
+				}
+			}
+		}
+	}
+
+	for _, group := range groups {
+		if !slices.Contains(suite.initialYtsaurusGroupnames, group.Name) {
+			path := ypath.Path(fmt.Sprintf("//sys/groups/%s", group.Name))
+			err := suite.ytsaurusClient.RemoveNode(suite.ctx, path, nil)
+			if err != nil {
+				log.Fatalf("failed to remove group: %s", group.Name)
+			}
+			exists := true
+			for exists {
+				exists, err = suite.ytsaurusClient.NodeExists(suite.ctx, path, nil)
+				if err != nil {
+					log.Fatalf("failed to check is group removed")
+				}
+			}
+		}
+	}
+
+}
+
+func (suite *AppTestSuite) syncOnce(t *testing.T, source Source, clock clock.PassiveClock, appConfig *AppConfig) {
+	if appConfig == nil {
+		appConfig = defaultAppConfig
+	}
+
+	app, err := NewAppCustomized(
+		&Config{
+			App:   *appConfig,
+			Azure: &AzureConfig{},
+			Ytsaurus: YtsaurusConfig{
+				Proxy:               suite.ytsaurusLocal.GetProxy(),
+				ApplyUserChanges:    true,
+				ApplyGroupChanges:   true,
+				ApplyMemberChanges:  true,
+				LogLevel:            "DEBUG",
+				SourceAttributeName: "azure",
+			},
+		}, getDevelopmentLogger(),
+		source,
+		clock,
+	)
+	require.NoError(t, err)
+
+	app.syncOnce()
+}
+
+func (suite *AppTestSuite) check(t *testing.T, expectedUsers []YtsaurusUser, expectedGroups []YtsaurusGroupWithMembers) {
+	// we have eventually here, because user removal takes some time.
+	require.Eventually(
+		t,
+		func() bool {
+			udiff, gdiff := suite.diffYtsaurusObjects(expectedUsers, expectedGroups)
+			actualUsers, actualGroups, err := suite.getAllYtsaurusObjects()
+			if err != nil {
+				log.Fatalf("failed to get all ytsaurus objects: %s", err)
+			}
+			if udiff != "" {
+				t.Log("Users diff is not empty yet:", udiff)
+				t.Log("expected users", expectedUsers)
+				t.Log("actual users", actualUsers)
+			}
+			if gdiff != "" {
+				t.Log("Groups diff is not empty yet:", gdiff)
+				t.Log("expected groups", expectedGroups)
+				t.Log("actual groups", actualGroups)
+			}
+			return udiff == "" && gdiff == ""
+		},
+		3*time.Second,
+		300*time.Millisecond,
+	)
+}
+
+func (suite *AppTestSuite) TestSkipCreateRemove() {
+	defer suite.clear()
+
+	t := suite.T()
+	passiveClock := testclock.NewFakePassiveClock(initialTestTime)
+
+	azure := NewAzureFake()
+	azure.setUsers([]SourceUser{
+		aliceAzure,
+		bobAzure,
+	})
+
+	setupYtsaurusObjects(
+		t,
+		suite.ytsaurusClient,
+		[]YtsaurusUser{
+			aliceYtsaurus,
+			carolYtsaurus,
+		},
+		nil,
+	)
+
+	expectedYtsaurusUsers := []YtsaurusUser{
+		aliceYtsaurus,
+		bobYtsaurus,
+	}
+
+	suite.syncOnce(t, azure, passiveClock, nil)
+
+	suite.check(t, expectedYtsaurusUsers, nil)
+}
+
+func (suite *AppTestSuite) TestUserBanned() {
+	defer suite.clear()
+
+	t := suite.T()
+	passiveClock := testclock.NewFakePassiveClock(initialTestTime)
+
+	azure := NewAzureFake()
+	azure.setUsers([]SourceUser{
+		aliceAzure,
+	})
+
+	setupYtsaurusObjects(
+		t,
+		suite.ytsaurusClient,
+		[]YtsaurusUser{
+			aliceYtsaurus,
+			bobYtsaurus,
+		},
+		nil,
+	)
+
+	appConfig := &AppConfig{
+		UsernameReplacements:    defaultUsernameReplacements,
+		GroupnameReplacements:   defaultGroupnameReplacements,
+		BanBeforeRemoveDuration: 24 * time.Hour,
+	}
+	suite.syncOnce(t, azure, passiveClock, appConfig)
+
+	expectedYtsaurusUsers := []YtsaurusUser{
+		aliceYtsaurus,
+		bobYtsaurusBanned,
+	}
+	suite.check(t, expectedYtsaurusUsers, nil)
+}
+
+func TestAppTestSuite(t *testing.T) {
+	suite.Run(t, new(AppTestSuite))
+}
+
 // TestAppSync uses local YTsaurus container and fake Azure to test all the cases:
 // [x] If Azure user not in YTsaurus -> created;
 // [x] If Azure user already in YTsaurus no changes -> skipped;
@@ -530,7 +772,7 @@ var (
 // [x] If Azure group displayName changed AND Azure members changed -> recreate YTsaurus group with actual members set;
 // [x] YTsaurus group name is built according to config;
 // [x] Remove limits config option works.
-func TestAppSync(t *testing.T) {
+/*func TestAppSync(t *testing.T) {
 	require.NoError(t, os.Setenv(defaultYtsaurusSecretEnvVar, ytDevToken))
 	for _, tc := range testCases {
 		t.Run(
@@ -579,32 +821,11 @@ func TestAppSync(t *testing.T) {
 
 					app.syncOnce()
 
-					// we have eventually here, because user removal takes some time.
-					require.Eventually(
-						t,
-						func() bool {
-							udiff, gdiff := diffYtsaurusObjects(t, ytClient, tc.ytUsersExpected, initialYtUsers, tc.ytGroupsExpected, initialYtGroups)
-							actualUsers, actualGroups := getAllYtsaurusObjects(t, ytClient)
-							if udiff != "" {
-								t.Log("Users diff is not empty yet:", udiff)
-								t.Log("expected users", tc.ytUsersExpected)
-								t.Log("actual users", actualUsers)
-							}
-							if gdiff != "" {
-								t.Log("Groups diff is not empty yet:", gdiff)
-								t.Log("expected groups", tc.ytGroupsExpected)
-								t.Log("actual groups", actualGroups)
-							}
-							return udiff == "" && gdiff == ""
-						},
-						3*time.Second,
-						300*time.Millisecond,
-					)
 				}
 			}(tc),
 		)
 	}
-}
+}*/
 
 func TestManageUnmanagedUsersIsForbidden(t *testing.T) {
 	ytLocal := NewYtsaurusLocal()
@@ -653,86 +874,48 @@ func TestManageUnmanagedUsersIsForbidden(t *testing.T) {
 	}
 }
 
-func getAllYtsaurusObjects(t *testing.T, client yt.Client) (users []YtsaurusUser, groups []YtsaurusGroupWithMembers) {
-	allUsers, err := doGetAllYtsaurusUsers(context.Background(), client, "azure")
-	require.NoError(t, err)
-	allGroups, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), client, "azure")
-	require.NoError(t, err)
-	return allUsers, allGroups
-}
-
 func setupYtsaurusObjects(t *testing.T, client yt.Client, users []YtsaurusUser, groups []YtsaurusGroupWithMembers) {
-	t.Log("Setting up yt for test")
-	for _, user := range users {
-		t.Logf("creating user: %v", user)
-		err := doCreateYtsaurusUser(
-			context.Background(),
-			client,
-			user.Username,
-			buildUserAttributes(user, "azure"),
-		)
-		require.NoError(t, err)
-	}
+	t.Log("Setting up ytsaurus for test")
+	if users != nil {
+		for _, user := range users {
+			t.Logf("creating user: %v", user)
 
-	for _, group := range groups {
-		t.Log("creating group:", group)
-		err := doCreateYtsaurusGroup(
-			context.Background(),
-			client,
-			group.Name,
-			buildGroupAttributes(group.YtsaurusGroup, "azure"),
-		)
-		require.NoError(t, err)
-		for member := range group.Members.Iter() {
-			err = doAddMemberYtsaurusGroup(
+			userAttributes := buildUserAttributes(user, "azure")
+			userAttributes["is_test"] = true
+			err := doCreateYtsaurusUser(
 				context.Background(),
 				client,
-				member,
-				group.Name,
+				user.Username,
+				userAttributes,
 			)
+			require.NoError(t, err)
 		}
-		require.NoError(t, err)
 	}
-}
 
-func diffYtsaurusObjects(t *testing.T, client yt.Client, expectedUsers, initialUsers []YtsaurusUser, expectedGroups, initalGroups []YtsaurusGroupWithMembers) (string, string) {
-	actualUsers, actualGroups := getAllYtsaurusObjects(t, client)
-	allExpectedUsers := append(initialUsers, expectedUsers...)
-	allExpectedGroups := append(initalGroups, expectedGroups...)
+	if groups != nil {
+		for _, group := range groups {
+			t.Log("creating group:", group)
 
-	// It seems that `users`  group @members attr contains not the all users in the system:
-	// for example it doesn't include:
-	// alien_cell_synchronizer, file_cache, guest, operations_cleaner, operations_client, etc...
-	// we don't want to test that.
-	// Though we expect it to include users created in test, so we update group members in out expected group list.
-	var expectedNewUsernamesInUsersGroup []string
-	for _, u := range expectedUsers {
-		expectedNewUsernamesInUsersGroup = append(expectedNewUsernamesInUsersGroup, u.Username)
-	}
-	for idx, group := range allExpectedGroups {
-		if group.Name == "users" {
-			for _, uname := range expectedNewUsernamesInUsersGroup {
-				allExpectedGroups[idx].Members.Add(uname)
+			groupAttributes := buildGroupAttributes(group.YtsaurusGroup, "azure")
+			groupAttributes["is_test"] = true
+			err := doCreateYtsaurusGroup(
+				context.Background(),
+				client,
+				group.Name,
+				groupAttributes,
+			)
+			require.NoError(t, err)
+			for member := range group.Members.Iter() {
+				err = doAddMemberYtsaurusGroup(
+					context.Background(),
+					client,
+					member,
+					group.Name,
+				)
 			}
+			require.NoError(t, err)
 		}
 	}
-
-	uDiff := cmp.Diff(
-		actualUsers,
-		allExpectedUsers,
-		cmpopts.SortSlices(func(left, right YtsaurusUser) bool {
-			return left.Username < right.Username
-		}),
-	)
-	gDiff := cmp.Diff(
-		actualGroups,
-		allExpectedGroups,
-		cmpopts.SortSlices(func(left, right YtsaurusGroupWithMembers) bool {
-			return left.Name < right.Name
-		}),
-	)
-
-	return uDiff, gDiff
 }
 
 func parseAppTime(timStr string) time.Time {

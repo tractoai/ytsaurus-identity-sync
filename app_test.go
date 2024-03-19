@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/suite"
-	"go.ytsaurus.tech/yt/go/ypath"
-	"k8s.io/utils/clock"
 	"log"
 	"os"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/suite"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"k8s.io/utils/clock"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -21,7 +22,8 @@ import (
 )
 
 const (
-	ytDevToken = "password"
+	ytDevToken              = "password"
+	runTestsWithNewYtEnvVar = "RUN_TESTS_WITH_NEW_YT"
 )
 
 type testCase struct {
@@ -238,6 +240,40 @@ var (
 	// we test several things in each test case, because of long wait for local ytsaurus
 	// container start.
 	testCases = []testCase{
+		{
+			name: "a-skip-b-create-c-remove",
+			azureUsersSetUp: []SourceUser{
+				aliceAzure,
+				bobAzure,
+			},
+			ytUsersSetUp: []YtsaurusUser{
+				aliceYtsaurus,
+				carolYtsaurus,
+			},
+			ytUsersExpected: []YtsaurusUser{
+				aliceYtsaurus,
+				bobYtsaurus,
+			},
+		},
+		{
+			name: "bob-is-banned",
+			appConfig: &AppConfig{
+				UsernameReplacements:    defaultUsernameReplacements,
+				GroupnameReplacements:   defaultGroupnameReplacements,
+				BanBeforeRemoveDuration: 24 * time.Hour,
+			},
+			ytUsersSetUp: []YtsaurusUser{
+				aliceYtsaurus,
+				bobYtsaurus,
+			},
+			azureUsersSetUp: []SourceUser{
+				aliceAzure,
+			},
+			ytUsersExpected: []YtsaurusUser{
+				aliceYtsaurus,
+				bobYtsaurusBanned,
+			},
+		},
 		{
 			name: "bob-was-banned-now-deleted-carol-was-banned-now-back",
 			// Bob was banned at initialTestTime,
@@ -503,17 +539,17 @@ func (suite *AppTestSuite) SetupSuite() {
 		log.Fatalf("error starting ytsaurus local container: %s", err)
 	}
 
+	err := os.Setenv(defaultYtsaurusSecretEnvVar, ytDevToken)
+	if err != nil {
+		log.Fatalf("failed to set YT_TOKEN: %s", err)
+	}
+
 	ytsaurusClient, err := suite.ytsaurusLocal.GetClient()
 	if err != nil {
 		log.Fatalf("error creating ytsaurus local client: %s", err)
 	}
 
 	suite.ytsaurusClient = ytsaurusClient
-
-	err = os.Setenv(defaultYtsaurusSecretEnvVar, ytDevToken)
-	if err != nil {
-		log.Fatalf("failed to set YT_TOKEN: %s", err)
-	}
 
 	suite.initialYtsaurusUsers, suite.initialYtsaurusGroups, err = suite.getAllYtsaurusObjects()
 	if err != nil {
@@ -541,7 +577,7 @@ func (suite *AppTestSuite) getAllYtsaurusObjects() (users []YtsaurusUser, groups
 		return nil, nil, err
 	}
 	allGroups, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), suite.ytsaurusClient, "azure")
-	return allUsers, allGroups, nil
+	return allUsers, allGroups, err
 }
 
 func (suite *AppTestSuite) diffYtsaurusObjects(expectedUsers []YtsaurusUser, expectedGroups []YtsaurusGroupWithMembers) (string, string) {
@@ -550,7 +586,6 @@ func (suite *AppTestSuite) diffYtsaurusObjects(expectedUsers []YtsaurusUser, exp
 		log.Fatalf("failed to get all ytsaurus objects: %s", err)
 	}
 	allExpectedUsers := append(suite.initialYtsaurusUsers, expectedUsers...)
-	allExpectedGroups := append(suite.initialYtsaurusGroups, expectedGroups...)
 
 	// It seems that `users` group @members attr contains not the all users in the system:
 	// for example it doesn't include:
@@ -561,13 +596,23 @@ func (suite *AppTestSuite) diffYtsaurusObjects(expectedUsers []YtsaurusUser, exp
 	for _, u := range expectedUsers {
 		expectedNewUsernamesInUsersGroup = append(expectedNewUsernamesInUsersGroup, u.Username)
 	}
-	for idx, group := range allExpectedGroups {
-		if group.Name == "users" {
+
+	var allExpectedGroups []YtsaurusGroupWithMembers
+	for _, initialGroup := range suite.initialYtsaurusGroups {
+		group := YtsaurusGroupWithMembers{YtsaurusGroup: initialGroup.YtsaurusGroup, Members: NewStringSet()}
+		if initialGroup.Name != "users" {
+			group.Members = initialGroup.Members
+		} else {
+			for member := range initialGroup.Members.Iter() {
+				group.Members.Add(member)
+			}
 			for _, uname := range expectedNewUsernamesInUsersGroup {
-				allExpectedGroups[idx].Members.Add(uname)
+				group.Members.Add(uname)
 			}
 		}
+		allExpectedGroups = append(allExpectedGroups, group)
 	}
+	allExpectedGroups = append(allExpectedGroups, expectedGroups...)
 
 	uDiff := cmp.Diff(
 		actualUsers,
@@ -616,7 +661,7 @@ func (suite *AppTestSuite) clear() {
 			path := ypath.Path(fmt.Sprintf("//sys/groups/%s", group.Name))
 			err := suite.ytsaurusClient.RemoveNode(suite.ctx, path, nil)
 			if err != nil {
-				log.Fatalf("failed to remove group: %s", group.Name)
+				log.Fatalf("failed to remove group: %s", err)
 			}
 			exists := true
 			for exists {
@@ -627,7 +672,6 @@ func (suite *AppTestSuite) clear() {
 			}
 		}
 	}
-
 }
 
 func (suite *AppTestSuite) syncOnce(t *testing.T, source Source, clock clock.PassiveClock, appConfig *AppConfig) {
@@ -657,7 +701,7 @@ func (suite *AppTestSuite) syncOnce(t *testing.T, source Source, clock clock.Pas
 }
 
 func (suite *AppTestSuite) check(t *testing.T, expectedUsers []YtsaurusUser, expectedGroups []YtsaurusGroupWithMembers) {
-	// we have eventually here, because user removal takes some time.
+	// We have eventually here, because user removal takes some time.
 	require.Eventually(
 		t,
 		func() bool {
@@ -683,78 +727,7 @@ func (suite *AppTestSuite) check(t *testing.T, expectedUsers []YtsaurusUser, exp
 	)
 }
 
-func (suite *AppTestSuite) TestSkipCreateRemove() {
-	defer suite.clear()
-
-	t := suite.T()
-	passiveClock := testclock.NewFakePassiveClock(initialTestTime)
-
-	azure := NewAzureFake()
-	azure.setUsers([]SourceUser{
-		aliceAzure,
-		bobAzure,
-	})
-
-	setupYtsaurusObjects(
-		t,
-		suite.ytsaurusClient,
-		[]YtsaurusUser{
-			aliceYtsaurus,
-			carolYtsaurus,
-		},
-		nil,
-	)
-
-	expectedYtsaurusUsers := []YtsaurusUser{
-		aliceYtsaurus,
-		bobYtsaurus,
-	}
-
-	suite.syncOnce(t, azure, passiveClock, nil)
-
-	suite.check(t, expectedYtsaurusUsers, nil)
-}
-
-func (suite *AppTestSuite) TestUserBanned() {
-	defer suite.clear()
-
-	t := suite.T()
-	passiveClock := testclock.NewFakePassiveClock(initialTestTime)
-
-	azure := NewAzureFake()
-	azure.setUsers([]SourceUser{
-		aliceAzure,
-	})
-
-	setupYtsaurusObjects(
-		t,
-		suite.ytsaurusClient,
-		[]YtsaurusUser{
-			aliceYtsaurus,
-			bobYtsaurus,
-		},
-		nil,
-	)
-
-	appConfig := &AppConfig{
-		UsernameReplacements:    defaultUsernameReplacements,
-		GroupnameReplacements:   defaultGroupnameReplacements,
-		BanBeforeRemoveDuration: 24 * time.Hour,
-	}
-	suite.syncOnce(t, azure, passiveClock, appConfig)
-
-	expectedYtsaurusUsers := []YtsaurusUser{
-		aliceYtsaurus,
-		bobYtsaurusBanned,
-	}
-	suite.check(t, expectedYtsaurusUsers, nil)
-}
-
-func TestAppTestSuite(t *testing.T) {
-	suite.Run(t, new(AppTestSuite))
-}
-
-// TestAppSync uses local YTsaurus container and fake Azure to test all the cases:
+// TestSyncOnce uses local YTsaurus container and fake Azure to test all the cases:
 // [x] If Azure user not in YTsaurus -> created;
 // [x] If Azure user already in YTsaurus no changes -> skipped;
 // [x] If Azure user already in YTsaurus with changes -> updated;
@@ -772,72 +745,54 @@ func TestAppTestSuite(t *testing.T) {
 // [x] If Azure group displayName changed AND Azure members changed -> recreate YTsaurus group with actual members set;
 // [x] YTsaurus group name is built according to config;
 // [x] Remove limits config option works.
-/*func TestAppSync(t *testing.T) {
-	require.NoError(t, os.Setenv(defaultYtsaurusSecretEnvVar, ytDevToken))
+func (suite *AppTestSuite) TestSyncOnce() {
+	t := suite.T()
+
 	for _, tc := range testCases {
 		t.Run(
 			tc.name,
 			func(tc testCase) func(t *testing.T) {
 				return func(t *testing.T) {
+					defer suite.clear()
+
 					if tc.testTime.IsZero() {
 						tc.testTime = initialTestTime
 					}
-					clock := testclock.NewFakePassiveClock(initialTestTime)
+					passiveClock := testclock.NewFakePassiveClock(tc.testTime)
 
-					ytLocal := NewYtsaurusLocal()
-					defer func() { require.NoError(t, ytLocal.Stop()) }()
-					require.NoError(t, ytLocal.Start())
+					if os.Getenv(runTestsWithNewYtEnvVar) != "" {
+						suite.TearDownSuite()
+						suite.SetupSuite()
+					}
 
 					azure := NewAzureFake()
 					azure.setUsers(tc.azureUsersSetUp)
 					azure.setGroups(tc.azureGroupsSetUp)
 
-					ytClient, err := ytLocal.GetClient()
-					require.NoError(t, err)
-
-					initialYtUsers, initialYtGroups := getAllYtsaurusObjects(t, ytClient)
-					setupYtsaurusObjects(t, ytClient, tc.ytUsersSetUp, tc.ytGroupsSetUp)
-
-					if tc.appConfig == nil {
-						tc.appConfig = defaultAppConfig
-					}
-					app, err := NewAppCustomized(
-						&Config{
-							App:   *tc.appConfig,
-							Azure: &AzureConfig{},
-							Ytsaurus: YtsaurusConfig{
-								Proxy:               ytLocal.GetProxy(),
-								ApplyUserChanges:    true,
-								ApplyGroupChanges:   true,
-								ApplyMemberChanges:  true,
-								LogLevel:            "DEBUG",
-								SourceAttributeName: "azure",
-							},
-						}, getDevelopmentLogger(),
-						azure,
-						clock,
+					setupYtsaurusObjects(
+						t,
+						suite.ytsaurusClient,
+						tc.ytUsersSetUp,
+						tc.ytGroupsSetUp,
 					)
-					require.NoError(t, err)
 
-					app.syncOnce()
+					suite.syncOnce(t, azure, passiveClock, tc.appConfig)
 
+					suite.check(t, tc.ytUsersExpected, tc.ytGroupsExpected)
 				}
 			}(tc),
 		)
 	}
-}*/
+}
 
-func TestManageUnmanagedUsersIsForbidden(t *testing.T) {
-	ytLocal := NewYtsaurusLocal()
-	defer func() { require.NoError(t, ytLocal.Stop()) }()
-	require.NoError(t, ytLocal.Start())
+func (suite *AppTestSuite) TestManageUnmanagedUsersIsForbidden() {
+	t := suite.T()
 
-	ytClient, err := ytLocal.GetClient()
-	require.NoError(t, err)
+	defer suite.clear()
 
 	ytsaurus, err := NewYtsaurus(
 		&YtsaurusConfig{
-			Proxy:    ytLocal.GetProxy(),
+			Proxy:    suite.ytsaurusLocal.GetProxy(),
 			LogLevel: "DEBUG",
 		},
 		getDevelopmentLogger(),
@@ -849,7 +804,7 @@ func TestManageUnmanagedUsersIsForbidden(t *testing.T) {
 
 	err = doCreateYtsaurusUser(
 		context.Background(),
-		ytClient,
+		suite.ytsaurusClient,
 		unmanagedOleg,
 		nil,
 	)
@@ -874,47 +829,46 @@ func TestManageUnmanagedUsersIsForbidden(t *testing.T) {
 	}
 }
 
+func TestAppTestSuite(t *testing.T) {
+	suite.Run(t, new(AppTestSuite))
+}
+
 func setupYtsaurusObjects(t *testing.T, client yt.Client, users []YtsaurusUser, groups []YtsaurusGroupWithMembers) {
 	t.Log("Setting up ytsaurus for test")
-	if users != nil {
-		for _, user := range users {
-			t.Logf("creating user: %v", user)
 
-			userAttributes := buildUserAttributes(user, "azure")
-			userAttributes["is_test"] = true
-			err := doCreateYtsaurusUser(
-				context.Background(),
-				client,
-				user.Username,
-				userAttributes,
-			)
-			require.NoError(t, err)
-		}
+	for _, user := range users {
+		t.Logf("creating user: %v", user)
+
+		userAttributes := buildUserAttributes(user, "azure")
+		err := doCreateYtsaurusUser(
+			context.Background(),
+			client,
+			user.Username,
+			userAttributes,
+		)
+		require.NoError(t, err)
 	}
 
-	if groups != nil {
-		for _, group := range groups {
-			t.Log("creating group:", group)
+	for _, group := range groups {
+		t.Log("creating group:", group)
 
-			groupAttributes := buildGroupAttributes(group.YtsaurusGroup, "azure")
-			groupAttributes["is_test"] = true
-			err := doCreateYtsaurusGroup(
+		groupAttributes := buildGroupAttributes(group.YtsaurusGroup, "azure")
+		err := doCreateYtsaurusGroup(
+			context.Background(),
+			client,
+			group.Name,
+			groupAttributes,
+		)
+
+		for member := range group.Members.Iter() {
+			err = doAddMemberYtsaurusGroup(
 				context.Background(),
 				client,
+				member,
 				group.Name,
-				groupAttributes,
 			)
-			require.NoError(t, err)
-			for member := range group.Members.Iter() {
-				err = doAddMemberYtsaurusGroup(
-					context.Background(),
-					client,
-					member,
-					group.Name,
-				)
-			}
-			require.NoError(t, err)
 		}
+		require.NoError(t, err)
 	}
 }
 

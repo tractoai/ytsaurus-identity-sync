@@ -2,9 +2,10 @@ package main
 
 import (
 	"embed"
-	"go.ytsaurus.tech/library/go/ptr"
 	"testing"
 	"time"
+
+	"go.ytsaurus.tech/library/go/ptr"
 
 	"github.com/stretchr/testify/require"
 )

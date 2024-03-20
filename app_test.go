@@ -571,6 +571,13 @@ func (suite *AppTestSuite) TearDownSuite() {
 	}
 }
 
+func (suite *AppTestSuite) restartYtsaurusIfNeeded() {
+	if os.Getenv(runTestsWithNewYtEnvVar) != "" {
+		suite.TearDownSuite()
+		suite.SetupSuite()
+	}
+}
+
 func (suite *AppTestSuite) getAllYtsaurusObjects() (users []YtsaurusUser, groups []YtsaurusGroupWithMembers, err error) {
 	allUsers, err := doGetAllYtsaurusUsers(context.Background(), suite.ytsaurusClient, "azure")
 	if err != nil {
@@ -672,6 +679,8 @@ func (suite *AppTestSuite) clear() {
 			}
 		}
 	}
+
+	suite.restartYtsaurusIfNeeded()
 }
 
 func (suite *AppTestSuite) syncOnce(t *testing.T, source Source, clock clock.PassiveClock, appConfig *AppConfig) {
@@ -727,7 +736,7 @@ func (suite *AppTestSuite) check(t *testing.T, expectedUsers []YtsaurusUser, exp
 	)
 }
 
-// TestSyncOnce uses local YTsaurus container and fake Azure to test all the cases:
+// TestAzureSyncOnce uses local YTsaurus container and fake Azure to test all the cases:
 // [x] If Azure user not in YTsaurus -> created;
 // [x] If Azure user already in YTsaurus no changes -> skipped;
 // [x] If Azure user already in YTsaurus with changes -> updated;
@@ -745,7 +754,7 @@ func (suite *AppTestSuite) check(t *testing.T, expectedUsers []YtsaurusUser, exp
 // [x] If Azure group displayName changed AND Azure members changed -> recreate YTsaurus group with actual members set;
 // [x] YTsaurus group name is built according to config;
 // [x] Remove limits config option works.
-func (suite *AppTestSuite) TestSyncOnce() {
+func (suite *AppTestSuite) TestAzureSyncOnce() {
 	t := suite.T()
 
 	for _, tc := range testCases {
@@ -759,11 +768,6 @@ func (suite *AppTestSuite) TestSyncOnce() {
 						tc.testTime = initialTestTime
 					}
 					passiveClock := testclock.NewFakePassiveClock(tc.testTime)
-
-					if os.Getenv(runTestsWithNewYtEnvVar) != "" {
-						suite.TearDownSuite()
-						suite.SetupSuite()
-					}
 
 					azure := NewAzureFake()
 					azure.setUsers(tc.azureUsersSetUp)

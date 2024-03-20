@@ -1,10 +1,9 @@
 module github.com/nebius/ytsaurus-active-directory-integration
 
-go 1.20
+go 1.22
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.4.0
-	github.com/containerd/containerd v1.7.12
 	github.com/deckarep/golang-set/v2 v2.3.1
 	github.com/google/go-cmp v0.6.0
 	github.com/jessevdk/go-flags v1.5.0
@@ -31,8 +30,8 @@ require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cjlapao/common-go v0.0.39 // indirect
+	github.com/containerd/containerd v1.7.12 // indirect
 	github.com/containerd/log v0.1.0 // indirect
-	github.com/containerd/ttrpc v1.2.2 // indirect
 	github.com/cpuguy83/dockercfg v0.3.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/distribution/reference v0.5.0 // indirect

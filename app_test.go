@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	ytDevToken              = "password"
-	runTestsWithNewYtEnvVar = "RUN_TESTS_WITH_NEW_YT"
+	ytDevToken             = "password"
+	reuseYtContainerEnvVar = "REUSE_YT_CONTAINER"
 )
 
 type testCase struct {
@@ -572,7 +572,7 @@ func (suite *AppTestSuite) TearDownSuite() {
 }
 
 func (suite *AppTestSuite) restartYtsaurusIfNeeded() {
-	if os.Getenv(runTestsWithNewYtEnvVar) != "" {
+	if os.Getenv(reuseYtContainerEnvVar) != "1" && os.Getenv(reuseYtContainerEnvVar) != "yes" {
 		suite.TearDownSuite()
 		suite.SetupSuite()
 	}

@@ -1,6 +1,6 @@
 module github.com/nebius/ytsaurus-active-directory-integration
 
-go 1.20
+go 1.22
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.4.0
@@ -14,7 +14,6 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/testcontainers/testcontainers-go v0.28.0
 	go.uber.org/zap v1.26.0
-	go.ytsaurus.tech/library/go/ptr v0.0.1
 	go.ytsaurus.tech/yt/go v0.0.13
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/utils v0.0.0-20230220204549-a5ecb0141aa5
@@ -90,6 +89,7 @@ require (
 	go.ytsaurus.tech/library/go/blockcodecs v0.0.2 // indirect
 	go.ytsaurus.tech/library/go/core/log v0.0.3 // indirect
 	go.ytsaurus.tech/library/go/core/xerrors v0.0.3 // indirect
+	go.ytsaurus.tech/library/go/ptr v0.0.1 // indirect
 	go.ytsaurus.tech/library/go/x/xreflect v0.0.2 // indirect
 	go.ytsaurus.tech/library/go/x/xruntime v0.0.3 // indirect
 	golang.org/x/crypto v0.17.0 // indirect

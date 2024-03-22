@@ -12,6 +12,9 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/suite"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"k8s.io/utils/clock"
@@ -28,8 +31,8 @@ const (
 	aliceName               = "alice"
 	bobName                 = "bob"
 	carolName               = "carol"
-	ytDevToken              = "password"
-	runTestsWithNewYtEnvVar = "RUN_TESTS_WITH_NEW_YT"
+	ytDevToken             = "password"
+	reuseYtContainerEnvVar = "REUSE_YT_CONTAINER"
 )
 
 type testCase struct {
@@ -860,7 +863,7 @@ func (suite *AppTestSuite) TearDownSuite() {
 }
 
 func (suite *AppTestSuite) restartYtsaurusIfNeeded() {
-	if os.Getenv(runTestsWithNewYtEnvVar) != "" {
+	if os.Getenv(reuseYtContainerEnvVar) != "1" && os.Getenv(reuseYtContainerEnvVar) != "yes" {
 		suite.TearDownSuite()
 		suite.SetupSuite()
 	}

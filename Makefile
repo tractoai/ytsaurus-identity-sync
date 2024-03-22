@@ -10,6 +10,10 @@ lint-fix:
 test:
 	go test ./...
 
+.PHONY: test-fast
+test-fast:
+	REUSE_YT_CONTAINER=yes go test ./...
+
 .PHONY: format
 format:
 	go fmt

@@ -7,8 +7,6 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"testing"
-	"time"
 
 	"github.com/go-ldap/ldap/v3"
 
@@ -28,9 +26,9 @@ import (
 )
 
 const (
-	aliceName               = "alice"
-	bobName                 = "bob"
-	carolName               = "carol"
+	aliceName              = "alice"
+	bobName                = "bob"
+	carolName              = "carol"
 	ytDevToken             = "password"
 	reuseYtContainerEnvVar = "REUSE_YT_CONTAINER"
 )

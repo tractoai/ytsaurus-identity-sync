@@ -45,8 +45,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # full length sha
-            type=sha,format=long
+            type=raw,value=git-{{sha}},enable={{is_default_branch}}
+            type=raw,value=git-{{branch}}-{{sha}},enable={{!is_default_branch}}
 
       # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`.
       # If the build succeeds, it pushes the image to GitHub Packages.

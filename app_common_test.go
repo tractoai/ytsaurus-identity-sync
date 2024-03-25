@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"log"
 	"os"
 	"slices"
@@ -42,7 +43,12 @@ type testCase struct {
 }
 
 func getUserID(name string) string {
-	return name + "-user-id"
+	h := fnv.New32a()
+	_, err := h.Write([]byte(name))
+	if err != nil {
+		log.Fatalf("failed to generate user id: %v", err)
+	}
+	return fmt.Sprintf("%v", h.Sum32())
 }
 
 var (

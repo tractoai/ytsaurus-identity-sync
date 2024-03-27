@@ -250,7 +250,7 @@ func (y *Ytsaurus) CreateGroup(group YtsaurusGroup) error {
 // UpdateGroup handles YTsaurus group attributes update.
 // In particular @name also may be changed, in that case groupname should be current group name.
 func (y *Ytsaurus) UpdateGroup(groupname string, group YtsaurusGroup) error {
-	logger := y.logger.With("groupname", group.Name, "group", group)
+	logger := y.logger.With("groupname", groupname, "group", group)
 	if y.dryRunGroups {
 		logger.Debugw("[DRY-RUN] Going to update group")
 		return nil
@@ -258,7 +258,7 @@ func (y *Ytsaurus) UpdateGroup(groupname string, group YtsaurusGroup) error {
 	if err := y.ensureGroupManaged(groupname); err != nil {
 		return err
 	}
-	logger.Debugw("Going to create group")
+	logger.Debugw("Going to update group")
 
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()

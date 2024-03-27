@@ -23,20 +23,20 @@ func TestUsersMigration(t *testing.T) {
 	cfg, err := loadConfig("config.local.yaml")
 	require.NoError(t, err)
 
-	logger, err := configureLogger(cfg.Logging)
+	logger, err := configureLogger(&cfg.Logging)
 	require.NoError(t, err)
 	app, err := NewApp(cfg, logger)
 	require.NoError(t, err)
 	azure, err := NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)
-	yt, err := NewYtsaurus(cfg.Ytsaurus, logger, clock.RealClock{})
+	yt, err := NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	require.NoError(t, err)
 
-	azureUsers, err := azure.GetUsers()
+	sourceUsers, err := azure.GetUsers()
 	require.NoError(t, err)
-	t.Log("Got", len(azureUsers), "Azure users")
+	t.Log("Got", len(sourceUsers), "Azure users")
 
-	ytUsers, err := doGetAllYtsaurusUsers(context.Background(), yt.client)
+	ytUsers, err := doGetAllYtsaurusUsers(context.Background(), yt.client, cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)
 	t.Log("Got", len(ytUsers), "raw YTsaurus users")
 
@@ -46,11 +46,12 @@ func TestUsersMigration(t *testing.T) {
 			manuallyCreatedUsers[user.Username] = user
 		}
 	}
-	t.Log("Got", len(manuallyCreatedUsers), "manually create YTsaurus users")
+	t.Log("Got", len(manuallyCreatedUsers), "manually created YTsaurus users")
 
 	ytUsersToUpdate := make(map[string]YtsaurusUser)
-	for _, azureUser := range azureUsers {
-		convertedUser := app.buildYtsaurusUser(azureUser)
+	for _, sourceUser := range sourceUsers {
+		convertedUser, err := app.buildYtsaurusUser(sourceUser)
+		require.NoError(t, err)
 		if _, match := manuallyCreatedUsers[convertedUser.Username]; !match {
 			continue
 		}
@@ -61,10 +62,10 @@ func TestUsersMigration(t *testing.T) {
 	t.Log("Got", len(ytUsersToUpdate), "users to update")
 
 	for username, user := range ytUsersToUpdate {
-		attrValue := user.SourceUser
+		attrValue := user.SourceRaw
 
 		if dryRun {
-			t.Log("[DRY-RUN] will set @azure=", attrValue, "for", username)
+			t.Log("[TEST-DRY-RUN] will set @azure=", attrValue, "for", username)
 			continue
 		}
 
@@ -88,20 +89,20 @@ func TestGroupsMigration(t *testing.T) {
 	cfg, err := loadConfig("config.local.yaml")
 	require.NoError(t, err)
 
-	logger, err := configureLogger(cfg.Logging)
+	logger, err := configureLogger(&cfg.Logging)
 	require.NoError(t, err)
 	app, err := NewApp(cfg, logger)
 	require.NoError(t, err)
 	azure, err := NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)
-	yt, err := NewYtsaurus(cfg.Ytsaurus, logger, clock.RealClock{})
+	yt, err := NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	require.NoError(t, err)
 
-	azureGroups, err := azure.GetGroupsWithMembers()
+	sourceGroups, err := azure.GetGroupsWithMembers()
 	require.NoError(t, err)
-	t.Log("Got", len(azureGroups), "Azure groups")
+	t.Log("Got", len(sourceGroups), "Azure groups")
 
-	ytGroups, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), yt.client)
+	ytGroups, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), yt.client, cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)
 	t.Log("Got", len(ytGroups), "raw YTsaurus groups")
 
@@ -114,8 +115,9 @@ func TestGroupsMigration(t *testing.T) {
 	t.Log("Got", len(manuallyCreatedGroups), "manually create YTsaurus groups")
 
 	ytGroupsToUpdate := make(map[string]YtsaurusGroup)
-	for _, azureGroup := range azureGroups {
-		convertedGroup := app.buildYtsaurusGroup(azureGroup.AzureGroup)
+	for _, sourceGroup := range sourceGroups {
+		convertedGroup, err := app.buildYtsaurusGroup(sourceGroup.SourceGroup)
+		require.NoError(t, err)
 		if _, match := manuallyCreatedGroups[convertedGroup.Name]; !match {
 			continue
 		}
@@ -126,7 +128,7 @@ func TestGroupsMigration(t *testing.T) {
 	t.Log("Got", len(ytGroupsToUpdate), "groups to update")
 
 	for groupname, group := range ytGroupsToUpdate {
-		attrValue := group
+		attrValue := group.SourceRaw
 		if dryRun {
 			t.Log("[DRY-RUN] will set @azure=", attrValue, "for", groupname)
 			continue

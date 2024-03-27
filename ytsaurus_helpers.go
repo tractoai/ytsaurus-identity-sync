@@ -219,7 +219,13 @@ func doSetAzureAttributeForYtsaurusGroup(
 	)
 }
 
-func doSetAttributesForYtsaurusGroup(ctx context.Context, client yt.Client, groupname string, attrs map[string]any) error {
+func doSetAttributesForYtsaurusGroupUpdate(ctx context.Context, client yt.Client, groupname string, attrs map[string]any) error {
+	if groupname == attrs[nameAttributeName] {
+		// otherwise we'll got
+		// method: "multiset_attributes"
+		// error setting builtin attribute "name"
+		delete(attrs, nameAttributeName)
+	}
 	return client.MultisetAttributes(
 		ctx,
 		ypath.Path("//sys/groups/"+groupname+"/@"),

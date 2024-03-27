@@ -149,5 +149,56 @@ func TestGroups(t *testing.T) {
 	groupsAfterRemove, err := yt.GetGroupsWithMembers()
 	require.NoError(t, err)
 	require.Empty(t, groupsAfterRemove)
+}
 
+func TestUpdateGroup(t *testing.T) {
+	ytLocal := NewYtsaurusLocal()
+	defer func() { require.NoError(t, ytLocal.Stop()) }()
+	yt := getYtsaurus(t, ytLocal)
+
+	initialName := "olegs"
+	managedOlegsGroup := YtsaurusGroup{
+		Name: initialName,
+		SourceRaw: map[string]any{
+			"id":           "fake-az-id-olegs",
+			"display_name": "This is group is for Olegs only",
+		},
+	}
+	err := yt.CreateGroup(managedOlegsGroup)
+	require.NoError(t, err)
+
+	// case 1: update display name
+	managedOlegsGroup.SourceRaw["display_name"] = "UPDATED DISPLAY NAME"
+	err = yt.UpdateGroup(managedOlegsGroup.Name, managedOlegsGroup)
+	require.NoError(t, err)
+
+	allGroups, err := yt.GetGroupsWithMembers()
+	require.NoError(t, err)
+	var fetchedGroup YtsaurusGroup
+	for _, group := range allGroups {
+		if group.YtsaurusGroup.Name == initialName {
+			fetchedGroup = group.YtsaurusGroup
+			break
+		}
+	}
+	require.Equal(t, managedOlegsGroup, fetchedGroup)
+
+	// case 2: update name
+	updatedName := "olegs-updated"
+	managedOlegsGroup.Name = updatedName
+	err = yt.UpdateGroup(initialName, managedOlegsGroup)
+	require.NoError(t, err)
+
+	allGroups, err = yt.GetGroupsWithMembers()
+	require.NoError(t, err)
+	fetchedGroup = YtsaurusGroup{}
+	for _, group := range allGroups {
+		if group.YtsaurusGroup.Name == initialName {
+			t.Fatalf("%s group should be renamed", initialName)
+		}
+		if group.YtsaurusGroup.Name == updatedName {
+			fetchedGroup = group.YtsaurusGroup
+		}
+	}
+	require.Equal(t, managedOlegsGroup, fetchedGroup)
 }

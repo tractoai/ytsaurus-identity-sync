@@ -265,7 +265,7 @@ func (y *Ytsaurus) UpdateGroup(groupname string, group YtsaurusGroup) error {
 
 	y.maybePrintExtraLogs(groupname, "update_group", "groupname", groupname, "group", groupname)
 	y.maybePrintExtraLogs(group.Name, "update_group", "groupname", groupname, "group", group)
-	return doSetAttributesForYtsaurusGroup(
+	return doSetAttributesForYtsaurusGroupUpdate(
 		ctx,
 		y.client,
 		groupname,

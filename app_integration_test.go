@@ -29,26 +29,26 @@ func TestAppIntegration(t *testing.T) {
 		require.NoError(t, ytLocal.Start())
 	}
 
-	logger, err := configureLogger(cfg.Logging)
+	logger, err := configureLogger(&cfg.Logging)
 	require.NoError(t, err)
 	app, err := NewApp(cfg, logger)
 	require.NoError(t, err)
 
 	ytClient, err := ytLocal.GetClient()
 
-	usersBefore, err := doGetAllYtsaurusUsers(context.Background(), ytClient)
+	usersBefore, err := doGetAllYtsaurusUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)
 	t.Log("usersBefore", len(usersBefore), usersBefore)
-	groupsBefore, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), ytClient)
+	groupsBefore, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	t.Log("groupsBefore", len(groupsBefore), groupsBefore)
 	require.NoError(t, err)
 
 	app.syncOnce()
 
-	usersAfter, err := doGetAllYtsaurusUsers(context.Background(), ytClient)
+	usersAfter, err := doGetAllYtsaurusUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)
 	t.Log("usersAfter", len(usersAfter), usersAfter)
-	groupsAfter, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), ytClient)
+	groupsAfter, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	t.Log("groupsAfter", len(groupsAfter), groupsAfter)
 	require.NoError(t, err)
 

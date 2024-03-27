@@ -209,7 +209,7 @@ func doSetAzureAttributeForYtsaurusGroup(
 	client yt.Client,
 	groupname string,
 	attrName string,
-	attrValue map[string]string,
+	attrValue map[string]any,
 ) error {
 	return client.SetNode(
 		ctx,

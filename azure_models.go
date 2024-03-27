@@ -53,10 +53,6 @@ func (au AzureUser) GetRaw() (map[string]any, error) {
 }
 
 type AzureGroup struct {
-	// Identity is unique human-readable Source user field, used (possibly with changes)
-	// for the corresponding YTsaurus user's `name` attribute.
-	Identity string `yson:"identity"`
-
 	AzureID     ObjectID `yson:"id"`
 	DisplayName string   `yson:"display_name"`
 }
@@ -80,7 +76,7 @@ func (ag AzureGroup) GetID() ObjectID {
 }
 
 func (ag AzureGroup) GetName() string {
-	return ag.Identity
+	return ag.DisplayName
 }
 
 func (ag AzureGroup) GetRaw() (map[string]any, error) {

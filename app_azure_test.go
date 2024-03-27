@@ -49,22 +49,18 @@ var (
 		DisplayName:   bobAzure.DisplayName,
 	}
 	devsAzureGroup = AzureGroup{
-		Identity:    "acme.devs|all",
 		AzureID:     "fake-az-acme.devs",
 		DisplayName: "acme.devs|all",
 	}
 	hqAzureGroup = AzureGroup{
-		Identity:    "acme.hq",
 		AzureID:     "fake-az-acme.hq",
 		DisplayName: "acme.hq",
 	}
 	devsAzureGroupChangedDisplayName = AzureGroup{
-		Identity:    "acme.developers|all",
 		AzureID:     devsAzureGroup.AzureID,
 		DisplayName: "acme.developers|all",
 	}
 	hqAzureGroupChangedBackwardCompatible = AzureGroup{
-		Identity:    "acme.hq|all",
 		AzureID:     hqAzureGroup.AzureID,
 		DisplayName: "acme.hq|all",
 	}
@@ -153,7 +149,6 @@ var (
 		SourceRaw: map[string]any{
 			"id":           devsAzureGroup.AzureID,
 			"display_name": "acme.devs|all",
-			"identity":     "acme.devs|all",
 		},
 	}
 	qaYtsaurusGroup = YtsaurusGroup{
@@ -161,7 +156,6 @@ var (
 		SourceRaw: map[string]any{
 			"id":           "fake-az-acme.qa",
 			"display_name": "acme.qa|all",
-			"identity":     "acme.qa",
 		},
 	}
 	hqYtsaurusGroup = YtsaurusGroup{
@@ -169,7 +163,6 @@ var (
 		SourceRaw: map[string]any{
 			"id":           hqAzureGroup.AzureID,
 			"display_name": "acme.hq",
-			"identity":     "acme.hq",
 		},
 	}
 	devsYtsaurusGroupChangedDisplayName = YtsaurusGroup{
@@ -177,7 +170,6 @@ var (
 		SourceRaw: map[string]any{
 			"id":           devsAzureGroup.AzureID,
 			"display_name": "acme.developers|all",
-			"identity":     "acme.developers|all",
 		},
 	}
 	hqYtsaurusGroupChangedBackwardCompatible = YtsaurusGroup{
@@ -185,7 +177,6 @@ var (
 		SourceRaw: map[string]any{
 			"id":           hqAzureGroup.AzureID,
 			"display_name": "acme.hq|all",
-			"identity":     "acme.hq|all",
 		},
 	}
 

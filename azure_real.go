@@ -206,7 +206,6 @@ func (a *AzureReal) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 		groups = append(groups,
 			SourceGroupWithMembers{
 				SourceGroup: AzureGroup{
-					Identity:    displayName,
 					AzureID:     id,
 					DisplayName: displayName,
 				},

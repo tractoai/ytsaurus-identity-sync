@@ -253,7 +253,7 @@ func (a *App) diffGroups(
 		}
 
 		// Collecting groups with changed Source fields (actually we have only displayName for now which
-		// should change, though we still handle that just in case).
+		// shouldn't change, though we still handle that just in case).
 		groupChanged, updatedYtGroup, err := a.isGroupChanged(sourceGroupWithMembers.SourceGroup, ytGroupWithMembers.YtsaurusGroup)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to check if group is changed")
@@ -264,7 +264,9 @@ func (a *App) diffGroups(
 			// This shouldn't happen until we add more fields in YTsaurus' group @azure attribute.
 			a.logger.Warnw(
 				"Detected group fields update (we handling that correctly, though case is not expected)",
-				"group", updatedYtGroup,
+				"source_group", sourceGroupWithMembers.SourceGroup,
+				"ytsaurus_group", ytGroupWithMembers.YtsaurusGroup,
+				"updated_group", updatedYtGroup,
 			)
 			groupsToUpdate = append(groupsToUpdate, updatedYtGroup)
 			actualGroupname = updatedYtGroup.YtsaurusGroup.Name
@@ -485,6 +487,14 @@ func (a *App) isGroupChanged(sourceGroup SourceGroup, ytGroup YtsaurusGroup) (bo
 	if bytes.Equal(newSourceRaw, oldSourceRaw) {
 		return false, UpdatedYtsaurusGroup{}, nil
 	}
+	a.logger.Debugw(
+		"Group is changed",
+		"sourceGroup", sourceGroup,
+		"ytGroup", ytGroup,
+		"newGroup", newGroup,
+		"newSourceRaw", string(newSourceRaw),
+		"oldSourceRaw", string(oldSourceRaw),
+	)
 	return true, UpdatedYtsaurusGroup{YtsaurusGroup: newGroup, OldName: ytGroup.Name}, nil
 }
 

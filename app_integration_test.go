@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/nebius/testcontainers-ytsaurus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +24,7 @@ func TestAppIntegration(t *testing.T) {
 	cfg, err := loadConfig("config.local.yaml")
 	require.NoError(t, err)
 
-	ytLocal := NewYtsaurusLocal()
+	ytLocal := ytcontainer.NewYtsaurusLocal()
 	if runLocalYtsaurus {
 		defer func() { require.NoError(t, ytLocal.Stop()) }()
 		require.NoError(t, ytLocal.Start())

@@ -11,6 +11,7 @@ require (
 	github.com/microsoft/kiota-abstractions-go v1.3.0
 	github.com/microsoftgraph/msgraph-sdk-go v1.24.0
 	github.com/microsoftgraph/msgraph-sdk-go-core v1.0.0
+	github.com/nebius/testcontainers-ytsaurus v0.1.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
 	github.com/testcontainers/testcontainers-go v0.29.1

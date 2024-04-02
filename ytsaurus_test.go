@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nebius/testcontainers-ytsaurus"
+	ytcontainer "github.com/nebius/testcontainers-ytsaurus"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/clock"
 

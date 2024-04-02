@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/nebius/testcontainers-ytsaurus"
+	ytcontainer "github.com/nebius/testcontainers-ytsaurus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.ytsaurus.tech/yt/go/ypath"

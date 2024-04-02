@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/nebius/testcontainers-ytsaurus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -70,7 +71,7 @@ var (
 
 type AppTestSuite struct {
 	suite.Suite
-	ytsaurusLocal             *YtsaurusLocal
+	ytsaurusLocal             *ytcontainer.YtsaurusLocal
 	ytsaurusClient            yt.Client
 	initialYtsaurusUsers      []YtsaurusUser
 	initialYtsaurusGroups     []YtsaurusGroupWithMembers
@@ -81,7 +82,7 @@ type AppTestSuite struct {
 
 func (suite *AppTestSuite) SetupSuite() {
 	suite.ctx = context.Background()
-	suite.ytsaurusLocal = NewYtsaurusLocal()
+	suite.ytsaurusLocal = ytcontainer.NewYtsaurusLocal()
 
 	if err := suite.ytsaurusLocal.Start(); err != nil {
 		log.Fatalf("error starting ytsaurus local container: %s", err)

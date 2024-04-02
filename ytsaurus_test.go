@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nebius/testcontainers-ytsaurus"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/clock"
 
 	"go.ytsaurus.tech/yt/go/ypath"
 )
 
-func getYtsaurus(t *testing.T, ytLocal *YtsaurusLocal) *Ytsaurus {
+func getYtsaurus(t *testing.T, ytLocal *ytcontainer.YtsaurusLocal) *Ytsaurus {
 	require.NoError(t, ytLocal.Start())
 
 	require.NoError(t, os.Setenv("YT_TOKEN", ytDevToken))
@@ -38,7 +39,7 @@ func getYtsaurus(t *testing.T, ytLocal *YtsaurusLocal) *Ytsaurus {
 // Since fields are updated this bug doesn't have consequences, though it is nice not to have
 // scary errors in logs.
 func TestUpdateUserFirstName(t *testing.T) {
-	ytLocal := NewYtsaurusLocal()
+	ytLocal := ytcontainer.NewYtsaurusLocal()
 	defer func() { require.NoError(t, ytLocal.Stop()) }()
 	yt := getYtsaurus(t, ytLocal)
 
@@ -78,7 +79,7 @@ func TestUpdateUserFirstName(t *testing.T) {
 }
 
 func TestGroups(t *testing.T) {
-	ytLocal := NewYtsaurusLocal()
+	ytLocal := ytcontainer.NewYtsaurusLocal()
 	defer func() { require.NoError(t, ytLocal.Stop()) }()
 	yt := getYtsaurus(t, ytLocal)
 
@@ -152,7 +153,7 @@ func TestGroups(t *testing.T) {
 }
 
 func TestUpdateGroup(t *testing.T) {
-	ytLocal := NewYtsaurusLocal()
+	ytLocal := ytcontainer.NewYtsaurusLocal()
 	defer func() { require.NoError(t, ytLocal.Stop()) }()
 	yt := getYtsaurus(t, ytLocal)
 

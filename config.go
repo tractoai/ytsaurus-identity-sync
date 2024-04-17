@@ -92,12 +92,13 @@ type LdapGroupsConfig struct {
 }
 
 type LdapConfig struct {
-	Address            string           `yaml:"address"`
-	BindDN             string           `yaml:"bind_dn"`
-	BindPasswordEnvVar string           `yaml:"bind_password_env_var"`
-	Users              LdapUsersConfig  `yaml:"users"`
-	Groups             LdapGroupsConfig `yaml:"groups"`
-	BaseDN             string           `yaml:"base_dn"`
+	Address                           string           `yaml:"address"`
+	BindDN                            string           `yaml:"bind_dn"`
+	BindPasswordEnvVar                string           `yaml:"bind_password_env_var"`
+	Users                             LdapUsersConfig  `yaml:"users"`
+	Groups                            LdapGroupsConfig `yaml:"groups"`
+	BaseDN                            string           `yaml:"base_dn"`
+	GroupsDisplayNameSuffixPostFilter string           `yaml:"groups_display_name_suffix_post_filter"`
 }
 
 type YtsaurusConfig struct {

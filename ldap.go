@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/go-ldap/ldap/v3"
 	"k8s.io/utils/env"
 )
@@ -83,6 +85,9 @@ func (l *Ldap) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 	for _, entry := range res.Entries {
 		groupname := entry.GetAttributeValue(l.config.Groups.GroupnameAttributeType)
 		members := entry.GetAttributeValues(l.config.Groups.MemberUIDAttributeType)
+		if l.config.GroupsDisplayNameSuffixPostFilter != "" && !strings.HasSuffix(groupname, l.config.GroupsDisplayNameSuffixPostFilter) {
+			continue
+		}
 		groups = append(groups, SourceGroupWithMembers{
 			SourceGroup: LdapGroup{
 				Groupname: groupname,

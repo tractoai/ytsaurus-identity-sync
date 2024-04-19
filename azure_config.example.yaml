@@ -17,7 +17,7 @@ azure:
   timeout: 1s
   users_filter: "(accountEnabled eq true) and (userType eq 'Member')"
   groups_filter: "displayName -ne ''"
-  groups_display_name_suffix_post_filter: ".dev"
+  groups_display_name_regex_post_filter: "\\.dev$"
 
 ytsaurus:
   proxy: localhost:10110

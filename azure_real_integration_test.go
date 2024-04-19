@@ -5,9 +5,12 @@ package main
 import (
 	"context"
 	"embed"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -170,4 +173,42 @@ func TestPrintAzureGroupsIntegration(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, groups)
+}
+
+// TestDiffAzureGroups is a script that can check difference between
+// collected groups for two configurations.
+func TestDiffAzureGroupsNames(t *testing.T) {
+	cfgBefore, err := loadConfig("config.local.yaml")
+	require.NoError(t, err)
+	logger, err := configureLogger(&cfgBefore.Logging)
+	require.NoError(t, err)
+
+	azureBefore, err := NewAzureReal(cfgBefore.Azure, logger)
+	require.NoError(t, err)
+	groupsBefore, err := azureBefore.GetGroupsWithMembers()
+	require.NoError(t, err)
+	var groupnamesBefore []string
+	for _, gr := range groupsBefore {
+		groupnamesBefore = append(groupnamesBefore, gr.SourceGroup.GetName())
+	}
+
+	cfgAfter, err := loadConfig("config.local.yaml")
+	cfgAfter.Azure.GroupsDisplayNameRegexPostFilter = `\|.+$`
+	require.NoError(t, err)
+
+	azureAfter, err := NewAzureReal(cfgAfter.Azure, logger)
+	require.NoError(t, err)
+	groupsAfter, err := azureAfter.GetGroupsWithMembers()
+	require.NoError(t, err)
+	var groupnamesAfter []string
+	for _, gr := range groupsAfter {
+		groupnamesAfter = append(groupnamesAfter, gr.SourceGroup.GetName())
+	}
+
+	diff := NewStringSetFromItems(groupnamesAfter...).SymmetricDifference(NewStringSetFromItems(groupnamesBefore...))
+	fmt.Println(len(diff.ToSlice()), diff)
+	strDiff := cmp.Diff(groupnamesBefore, groupnamesAfter, cmpopts.SortSlices(func(a, b string) bool {
+		return a < b
+	}))
+	require.Empty(t, strDiff)
 }

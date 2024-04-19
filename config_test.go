@@ -35,7 +35,7 @@ func TestAzureConfig(t *testing.T) {
 	require.Equal(t, 1*time.Second, cfg.Azure.Timeout)
 	require.Equal(t, "(accountEnabled eq true) and (userType eq 'Member')", cfg.Azure.UsersFilter)
 	require.Equal(t, "displayName -ne ''", cfg.Azure.GroupsFilter)
-	require.Equal(t, ".dev", cfg.Azure.GroupsDisplayNameSuffixPostFilter)
+	require.Equal(t, `\.dev$`, cfg.Azure.GroupsDisplayNameRegexPostFilter)
 
 	require.Equal(t, "localhost:10110", cfg.Ytsaurus.Proxy)
 	require.Equal(t, true, cfg.Ytsaurus.ApplyUserChanges)

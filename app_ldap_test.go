@@ -54,8 +54,13 @@ func bannedYtsaurusUser(ytUser YtsaurusUser, bannedSince time.Time) YtsaurusUser
 
 func createLdapGroup(name string) LdapGroup {
 	name = "acme." + name
+	originalName := fmt.Sprintf("%v|all", name)
+	ytName := originalName
+	for _, replacement := range defaultGroupnameReplacements {
+		ytName = strings.Replace(ytName, replacement.From, replacement.To, -1)
+	}
 	return LdapGroup{
-		Groupname: fmt.Sprintf("%v|all", name),
+		Groupname: ytName,
 	}
 }
 
@@ -67,7 +72,7 @@ func createYtsaurusGroup(name string) YtsaurusGroup {
 		ytName = strings.Replace(ytName, replacement.From, replacement.To, -1)
 	}
 	return YtsaurusGroup{Name: name, SourceRaw: map[string]any{
-		"groupname": originalName,
+		"groupname": ytName,
 	}}
 }
 
@@ -228,10 +233,6 @@ var (
 				{
 					YtsaurusGroup: createYtsaurusGroup("devs"),
 					Members:       NewStringSetFromItems(aliceName),
-				},
-				{
-					YtsaurusGroup: createYtsaurusGroup("hq"),
-					Members:       NewStringSetFromItems(carolName),
 				},
 			},
 		},

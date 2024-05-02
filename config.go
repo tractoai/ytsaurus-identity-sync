@@ -88,17 +88,17 @@ type LdapGroupsConfig struct {
 	MemberUIDAttributeType string `yaml:"member_uid_attribute_type"`
 
 	// A list of groupnames for which app will print more debug info in logs.
-	DebugGroupnames []string `yaml:"debug_groupnames"`
+	DebugGroupnames            []string `yaml:"debug_groupnames"`
+	GroupsNameSuffixPostFilter string   `yaml:"groups_display_name_suffix_post_filter"`
 }
 
 type LdapConfig struct {
-	Address                           string           `yaml:"address"`
-	BindDN                            string           `yaml:"bind_dn"`
-	BindPasswordEnvVar                string           `yaml:"bind_password_env_var"`
-	Users                             LdapUsersConfig  `yaml:"users"`
-	Groups                            LdapGroupsConfig `yaml:"groups"`
-	BaseDN                            string           `yaml:"base_dn"`
-	GroupsDisplayNameSuffixPostFilter string           `yaml:"groups_display_name_suffix_post_filter"`
+	Address            string           `yaml:"address"`
+	BindDN             string           `yaml:"bind_dn"`
+	BindPasswordEnvVar string           `yaml:"bind_password_env_var"`
+	Users              LdapUsersConfig  `yaml:"users"`
+	Groups             LdapGroupsConfig `yaml:"groups"`
+	BaseDN             string           `yaml:"base_dn"`
 }
 
 type YtsaurusConfig struct {

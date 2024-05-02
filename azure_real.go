@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
-	"strings"
+	"regexp"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -42,9 +43,9 @@ var (
 type AzureReal struct {
 	graphClient *msgraphsdk.GraphServiceClient
 
-	usersFilter                       string
-	groupsFilter                      string
-	groupsDisplayNameSuffixPostFilter string
+	usersFilter                      string
+	groupsFilter                     string
+	groupsDisplayNameRegexPostFilter *regexp.Regexp
 
 	logger  appLoggerType
 	timeout time.Duration
@@ -80,10 +81,20 @@ func NewAzureReal(cfg *AzureConfig, logger appLoggerType) (*AzureReal, error) {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = defaultAzureTimeout
 	}
+	if cfg.GroupsDisplayNameSuffixPostFilter != "" {
+		return nil, fmt.Errorf("groups_display_name_suffix_post_filter is deprecated, use groups_display_name_regex_post_filter")
+	}
+	var postFilterRegex *regexp.Regexp
+	if cfg.GroupsDisplayNameRegexPostFilter != "" {
+		postFilterRegex, err = regexp.Compile(cfg.GroupsDisplayNameRegexPostFilter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile groups_display_name_regex_post_filter re: %w", err)
+		}
+	}
 	return &AzureReal{
-		usersFilter:                       cfg.UsersFilter,
-		groupsFilter:                      cfg.GroupsFilter,
-		groupsDisplayNameSuffixPostFilter: cfg.GroupsDisplayNameSuffixPostFilter,
+		usersFilter:                      cfg.UsersFilter,
+		groupsFilter:                     cfg.GroupsFilter,
+		groupsDisplayNameRegexPostFilter: postFilterRegex,
 
 		graphClient:   graphClient,
 		logger:        logger,
@@ -179,7 +190,7 @@ func (a *AzureReal) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 			continue
 		}
 
-		if a.groupsDisplayNameSuffixPostFilter != "" && !strings.HasSuffix(displayName, a.groupsDisplayNameSuffixPostFilter) {
+		if a.groupsDisplayNameRegexPostFilter != nil && !a.groupsDisplayNameRegexPostFilter.MatchString(displayName) {
 			continue
 		}
 

@@ -53,9 +53,11 @@ type AzureConfig struct {
 	GroupsFilter string `yaml:"groups_filter"`
 
 	// TODO(nadya73): support for ldap also, but with other name.
-	// GroupsDisplayNameSuffixPostFilter applied to the fetched groups display names.
-	GroupsDisplayNameSuffixPostFilter string        `yaml:"groups_display_name_suffix_post_filter"`
-	Timeout                           time.Duration `yaml:"timeout"`
+	// GroupsDisplayNameSuffixPostFilter is deprecated: use GroupsDisplayNameRegexPostFilter instead.
+	GroupsDisplayNameSuffixPostFilter string `yaml:"groups_display_name_suffix_post_filter"`
+	// GroupsDisplayNameRegexPostFilter applied to the fetched groups display names.
+	GroupsDisplayNameRegexPostFilter string        `yaml:"groups_display_name_regex_post_filter"`
+	Timeout                          time.Duration `yaml:"timeout"`
 
 	// TODO(nadya73): support for ldap also, but with other name.
 	// DebugAzureIDs is a list of ids for which app will print more debug info in logs.

@@ -113,7 +113,7 @@ func (l *Ldap) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 		})
 	}
 
-	l.logger.Infow("Fetched groups from LDAP", "got")
+	l.logger.Infow("Fetched groups from LDAP", "got", len(groups), "skipped", groupsSkipped)
 	return groups, nil
 }
 

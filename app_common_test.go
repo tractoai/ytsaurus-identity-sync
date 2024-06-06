@@ -237,7 +237,7 @@ func (suite *AppTestSuite) syncOnce(t *testing.T, source Source, clock clock.Pas
 		appConfig = defaultAppConfig
 	}
 
-	proxy, err := suite.ytsaurusLocal.ConnectionHost(suite.ctx)
+	proxy, err := suite.ytsaurusLocal.GetProxy(suite.ctx)
 	require.NoError(t, err)
 	app, err := NewAppCustomized(
 		&Config{
@@ -292,7 +292,8 @@ func (suite *AppTestSuite) TestManageUnmanagedUsersIsForbidden() {
 
 	defer suite.clear()
 
-	proxy, err := suite.ytsaurusLocal.ConnectionHost(suite.ctx)
+	proxy, err := suite.ytsaurusLocal.GetProxy(suite.ctx)
+	require.NoError(t, err)
 	ytsaurus, err := NewYtsaurus(
 		&YtsaurusConfig{
 			Proxy:    proxy,

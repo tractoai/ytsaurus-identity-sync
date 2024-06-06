@@ -34,8 +34,9 @@ run:
 
 # output configuration options
 output:
-  # colored-line-number|line-number|json|tab|checkstyle, default is "colored-line-number"
-  format: colored-line-number
+  formats:
+    - # colored-line-number|line-number|json|tab|checkstyle, default is "colored-line-number"
+      format: colored-line-number
 
   # print lines of code with issue, default is true
   print-issued-lines: true
@@ -110,7 +111,7 @@ linters-settings:
 
   staticcheck:
     # Select the Go version to target. The default is '1.13'.
-    go: 1.20.0
+    go: 1.22.0
     checks: # default checks from https://staticcheck.io/docs/configuration/options/ + excluded SA1019
     - all
     - -ST1000 # Incorrect or missing package comment

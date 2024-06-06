@@ -15,7 +15,7 @@ import (
 
 func getYtsaurus(t *testing.T, ytLocal *ytcontainer.YTsaurusContainer) *Ytsaurus {
 	require.NoError(t, os.Setenv("YT_TOKEN", ytDevToken))
-	proxy, err := ytLocal.ConnectionHost(context.Background())
+	proxy, err := ytLocal.GetProxy(context.Background())
 	require.NoError(t, err)
 	yt, err := NewYtsaurus(
 		&YtsaurusConfig{

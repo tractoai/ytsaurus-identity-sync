@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/nebius/ytsaurus-active-directory-integration
+  repository: ghcr.io/tractoai/ytsaurus-identity-sync
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "2024-04-19-569ba16"

@@ -1,1 +1,1 @@
-# ytsaurus-active-directory-integration
+# ytsaurus-identity-sync

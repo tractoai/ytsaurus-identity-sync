@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/nebius/testcontainers-ytsaurus"
 	"github.com/stretchr/testify/require"
+	"github.com/tractoai/testcontainers-ytsaurus"
 )
 
 const (

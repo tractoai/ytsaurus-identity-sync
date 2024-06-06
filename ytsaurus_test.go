@@ -6,20 +6,20 @@ import (
 	"testing"
 	"time"
 
-	ytcontainer "github.com/nebius/testcontainers-ytsaurus"
 	"github.com/stretchr/testify/require"
+	ytcontainer "github.com/tractoai/testcontainers-ytsaurus"
 	"k8s.io/utils/clock"
 
 	"go.ytsaurus.tech/yt/go/ypath"
 )
 
-func getYtsaurus(t *testing.T, ytLocal *ytcontainer.YtsaurusLocal) *Ytsaurus {
-	require.NoError(t, ytLocal.Start())
-
+func getYtsaurus(t *testing.T, ytLocal *ytcontainer.YTsaurusContainer) *Ytsaurus {
 	require.NoError(t, os.Setenv("YT_TOKEN", ytDevToken))
+	proxy, err := ytLocal.ConnectionHost(context.Background())
+	require.NoError(t, err)
 	yt, err := NewYtsaurus(
 		&YtsaurusConfig{
-			Proxy:               ytLocal.GetProxy(),
+			Proxy:               proxy,
 			Timeout:             10 * time.Minute,
 			LogLevel:            "DEBUG",
 			ApplyUserChanges:    true,
@@ -39,8 +39,10 @@ func getYtsaurus(t *testing.T, ytLocal *ytcontainer.YtsaurusLocal) *Ytsaurus {
 // Since fields are updated this bug doesn't have consequences, though it is nice not to have
 // scary errors in logs.
 func TestUpdateUserFirstName(t *testing.T) {
-	ytLocal := ytcontainer.NewYtsaurusLocal()
-	defer func() { require.NoError(t, ytLocal.Stop()) }()
+	ctx := context.Background()
+	ytLocal, err := ytcontainer.RunContainer(ctx)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, ytLocal.Terminate(ctx)) }()
 	yt := getYtsaurus(t, ytLocal)
 
 	const azureID = "fake-az-id-old"
@@ -52,7 +54,7 @@ func TestUpdateUserFirstName(t *testing.T) {
 			"first_name": "Lego",
 		},
 	}
-	err := yt.CreateUser(managedOleg)
+	err = yt.CreateUser(managedOleg)
 	require.NoError(t, err)
 
 	managedOleg.SourceRaw = map[string]any{
@@ -62,12 +64,12 @@ func TestUpdateUserFirstName(t *testing.T) {
 
 	updErr := yt.UpdateUser(managedOleg.Username, managedOleg)
 
-	ytClient, err := ytLocal.GetClient()
+	ytClient, err := ytLocal.NewClient(ctx)
 	require.NoError(t, err)
 
 	var updatedName string
 	err = ytClient.GetNode(
-		context.Background(),
+		ctx,
 		ypath.Path("//sys/users/"+managedOleg.Username+"/@azure/first_name"),
 		&updatedName,
 		nil,
@@ -79,8 +81,10 @@ func TestUpdateUserFirstName(t *testing.T) {
 }
 
 func TestGroups(t *testing.T) {
-	ytLocal := ytcontainer.NewYtsaurusLocal()
-	defer func() { require.NoError(t, ytLocal.Stop()) }()
+	ctx := context.Background()
+	ytLocal, err := ytcontainer.RunContainer(ctx)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, ytLocal.Terminate(ctx)) }()
 	yt := getYtsaurus(t, ytLocal)
 
 	groupsInitial, err := yt.GetGroupsWithMembers()
@@ -153,8 +157,10 @@ func TestGroups(t *testing.T) {
 }
 
 func TestUpdateGroup(t *testing.T) {
-	ytLocal := ytcontainer.NewYtsaurusLocal()
-	defer func() { require.NoError(t, ytLocal.Stop()) }()
+	ctx := context.Background()
+	ytLocal, err := ytcontainer.RunContainer(ctx)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, ytLocal.Terminate(ctx)) }()
 	yt := getYtsaurus(t, ytLocal)
 
 	initialName := "olegs"
@@ -165,7 +171,7 @@ func TestUpdateGroup(t *testing.T) {
 			"display_name": "This is group is for Olegs only",
 		},
 	}
-	err := yt.CreateGroup(managedOlegsGroup)
+	err = yt.CreateGroup(managedOlegsGroup)
 	require.NoError(t, err)
 
 	// case 1: update display name

@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	ytcontainer "github.com/nebius/testcontainers-ytsaurus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	ytcontainer "github.com/tractoai/testcontainers-ytsaurus"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"k8s.io/utils/clock"
@@ -71,7 +71,7 @@ var (
 
 type AppTestSuite struct {
 	suite.Suite
-	ytsaurusLocal             *ytcontainer.YtsaurusLocal
+	ytsaurusLocal             *ytcontainer.YTsaurusContainer
 	ytsaurusClient            yt.Client
 	initialYtsaurusUsers      []YtsaurusUser
 	initialYtsaurusGroups     []YtsaurusGroupWithMembers
@@ -82,18 +82,18 @@ type AppTestSuite struct {
 
 func (suite *AppTestSuite) SetupSuite() {
 	suite.ctx = context.Background()
-	suite.ytsaurusLocal = ytcontainer.NewYtsaurusLocal()
+	var err error
 
-	if err := suite.ytsaurusLocal.Start(); err != nil {
+	if suite.ytsaurusLocal, err = ytcontainer.RunContainer(suite.ctx); err != nil {
 		log.Fatalf("error starting ytsaurus local container: %s", err)
 	}
 
-	err := os.Setenv(defaultYtsaurusSecretEnvVar, ytDevToken)
+	err = os.Setenv(defaultYtsaurusSecretEnvVar, ytDevToken)
 	if err != nil {
 		log.Fatalf("failed to set YT_TOKEN: %s", err)
 	}
 
-	ytsaurusClient, err := suite.ytsaurusLocal.GetClient()
+	ytsaurusClient, err := suite.ytsaurusLocal.NewClient(suite.ctx)
 	if err != nil {
 		log.Fatalf("error creating ytsaurus local client: %s", err)
 	}
@@ -115,7 +115,7 @@ func (suite *AppTestSuite) SetupSuite() {
 }
 
 func (suite *AppTestSuite) TearDownSuite() {
-	if err := suite.ytsaurusLocal.Stop(); err != nil {
+	if err := suite.ytsaurusLocal.Terminate(suite.ctx); err != nil {
 		log.Fatalf("error terminating ytsaurus local container: %s", err)
 	}
 }
@@ -237,12 +237,14 @@ func (suite *AppTestSuite) syncOnce(t *testing.T, source Source, clock clock.Pas
 		appConfig = defaultAppConfig
 	}
 
+	proxy, err := suite.ytsaurusLocal.ConnectionHost(suite.ctx)
+	require.NoError(t, err)
 	app, err := NewAppCustomized(
 		&Config{
 			App:   *appConfig,
 			Azure: &AzureConfig{},
 			Ytsaurus: YtsaurusConfig{
-				Proxy:               suite.ytsaurusLocal.GetProxy(),
+				Proxy:               proxy,
 				ApplyUserChanges:    true,
 				ApplyGroupChanges:   true,
 				ApplyMemberChanges:  true,
@@ -290,9 +292,10 @@ func (suite *AppTestSuite) TestManageUnmanagedUsersIsForbidden() {
 
 	defer suite.clear()
 
+	proxy, err := suite.ytsaurusLocal.ConnectionHost(suite.ctx)
 	ytsaurus, err := NewYtsaurus(
 		&YtsaurusConfig{
-			Proxy:    suite.ytsaurusLocal.GetProxy(),
+			Proxy:    proxy,
 			LogLevel: "DEBUG",
 		},
 		getDevelopmentLogger(),

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,6 +81,80 @@ func TestPrintAzureUsersIntegration(t *testing.T) {
 		)
 	}
 	require.NotEmpty(t, usersRaw)
+}
+
+// TestPrintAzureUsersDiffIntegration can be used to tune user filter by reviewing a diff ao users for two filters.
+func TestPrintAzureUsersDiffIntegration(t *testing.T) {
+	cfg, err := loadConfig("config.local.yaml")
+	require.NoError(t, err)
+
+	logger, err := configureLogger(&cfg.Logging)
+	require.NoError(t, err)
+	azure, err := NewAzureReal(cfg.Azure, logger)
+	require.NoError(t, err)
+
+	fieldsToSelect := append(
+		defaultUserFieldsToSelect,
+		"jobTitle",
+		"userType",
+		"accountEnabled",
+	)
+	filterFromConfig := cfg.Azure.UsersFilter
+	filterToDiff := `
+		(accountEnabled eq true) and (userType eq 'Member')
+		and not (jobTitle in ('Shared mailbox', 'Contractor'))
+	`
+	usersRawForConfig, err := azure.getUsersRaw(context.Background(), fieldsToSelect, filterFromConfig)
+	require.NoError(t, err)
+	usersRawForDiff, err := azure.getUsersRaw(context.Background(), fieldsToSelect, filterToDiff)
+	require.NoError(t, err)
+
+	usersBefore := rawUsersToTestUsers(usersRawForConfig)
+	usersAfter := rawUsersToTestUsers(usersRawForDiff)
+
+	t.Log("New users:")
+	for id, user := range usersAfter {
+		if _, existed := usersBefore[id]; !existed {
+			t.Logf("%+v", user)
+		}
+	}
+	t.Log("Removed users:")
+	for id, user := range usersBefore {
+		if _, exists := usersAfter[id]; !exists {
+			t.Logf("%+v", user)
+		}
+	}
+}
+
+type testUser struct {
+	Id             string
+	PrincipalName  string
+	Mail           string
+	FirstName      string
+	LastName       string
+	DisplayName    string
+	JobTitle       string
+	UserType       string
+	AccountEnabled bool
+}
+
+func rawUsersToTestUsers(usersRaw []models.Userable) map[string]testUser {
+	users := make(map[string]testUser)
+	for _, user := range usersRaw {
+		testu := testUser{
+			Id:             handleNil(user.GetId()),
+			PrincipalName:  handleNil(user.GetUserPrincipalName()),
+			Mail:           handleNil(user.GetMail()),
+			FirstName:      handleNil(user.GetGivenName()),
+			LastName:       handleNil(user.GetSurname()),
+			DisplayName:    handleNil(user.GetDisplayName()),
+			JobTitle:       handleNil(user.GetJobTitle()),
+			UserType:       handleNil(user.GetUserType()),
+			AccountEnabled: handleNil(user.GetAccountEnabled()),
+		}
+		users[testu.Id] = testu
+	}
+	return users
 }
 
 // TestPrintAzureGroupsIntegration tests nothing, but can be used to debug Azure groups retrieved from ms graph api.

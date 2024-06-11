@@ -1,4 +1,4 @@
-name: Create and publish an app and helm images on each commit to the main
+name: Publish helm and app images per commit to main
 
 # Configures this workflow to run every time a change is pushed to the main branch.
 on:

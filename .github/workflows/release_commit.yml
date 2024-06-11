@@ -64,8 +64,8 @@ jobs:
       - name: Build and push helm chart image
         uses: appany/helm-oci-chart-releaser@v0.3.0
         with:
-          name: ytsaurus-identity-sync-chart
-          repository: ${{ github.repository }}
+          name: ${{ github.repository }}-chart
+          repository: ${{ github.repository }}-chart
           tag: 0.0.0+${{ steps.meta.outputs.version }}
           path: deploy/chart/ytsaurus-identity-sync
           registry: ${{ env.REGISTRY }}

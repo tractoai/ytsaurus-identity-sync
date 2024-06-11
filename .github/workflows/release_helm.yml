@@ -1,0 +1,65 @@
+name: Release helm chart
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'release-helm/[0-9]+\.[0-9]+\.[0-9]+'
+
+
+# Defines two custom environment variables for the workflow.
+# These are used for the Container registry domain, and a name for the Docker image that this workflow builds.
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+
+    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Uses the `docker/login-action` action to log in to the Container registry
+      # using the account and password that will publish the packages.
+      # Once published, the packages are scoped to the account defined here.
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # This step uses [docker/metadata-action](https://github.com/docker/metadata-action#about)
+      # to extract tags and labels that will be applied to the specified image.
+      # The `id` "meta" allows the output of this step to be referenced in a subsequent step.
+      # The `images` value provides the base name for the tags and labels.
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value={{date 'YYYY-MM-DD'}}-{{sha}}
+
+      - name: Parse tag
+        id: tag
+        run: |
+          echo "version=$(echo ${GITHUB_REF_NAME#release-helm/*})" >> $GITHUB_OUTPUT
+
+      - name: Build and push helm chart image
+        uses: appany/helm-oci-chart-releaser@v0.3.0
+        with:
+          name: ytsaurus-identity-sync-chart
+          repository: tractoai
+          tag: ${{ steps.tag.outputs.version }}
+          path: ytsaurus-identity-sync-chart
+          registry: ${{ env.REGISTRY }}
+          registry_username: ${{ github.actor }}
+          registry_password: ${{ secrets.GITHUB_TOKEN }}

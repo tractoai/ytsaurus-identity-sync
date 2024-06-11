@@ -64,7 +64,7 @@ jobs:
       - name: Build and push helm chart image
         uses: appany/helm-oci-chart-releaser@v0.3.0
         with:
-          name: ytsaurus-identity-sync
+          name: ytsaurus-identity-sync-chart
           repository: tractoai
           tag: 0.0.0+${{ steps.meta.outputs.version }}
           path: ytsaurus-identity-sync-chart

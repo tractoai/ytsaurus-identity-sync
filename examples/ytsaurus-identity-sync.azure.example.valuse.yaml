@@ -1,0 +1,43 @@
+image:
+  tag: "2024-04-19-569ba16"
+
+yt:
+  proxy: yt-proxy.acme.com
+  # development configuration, use externalSecrets for production.
+  token: "yt-secret-token"
+
+syncSource: azure
+
+azure:
+  # development configuration, use externalSecrets for production.
+  clientSecret: "azure-secret-token"
+
+syncConfig: |-
+  app:
+    sync_interval: 10m
+    username_replacements:
+      - from: "@acme.com"
+        to: ""
+    remove_limit: 10
+    ban_before_remove_duration: 168h # 7d
+
+  azure:
+    tenant: "acme.onmicrosoft.com"
+    client_id: "abcdef-1111-2222-333-deadbeef"
+    timeout: 1m
+    users_filter: "(accountEnabled eq true) and (userType eq 'Member')
+      and not (jobTitle in ('Shared mailbox'))
+      and endsWith(userPrincipalName, '@acme.com')"
+
+  ytsaurus:
+    proxy: "{{ .Values.yt.proxy }}"
+    apply_user_changes: true
+    apply_group_changes: true
+    apply_member_changes: true
+    timeout: 3s
+    source_attribute_name: "azure"
+
+  logging:
+    is_production: true
+    level: DEBUG
+

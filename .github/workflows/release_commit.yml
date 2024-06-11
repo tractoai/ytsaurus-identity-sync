@@ -1,4 +1,4 @@
-name: Create and publish a Docker image
+name: Create and publish an app and helm images on each commit to the main
 
 # Configures this workflow to run every time a change is pushed to the main branch.
 on:
@@ -60,3 +60,14 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Build and push helm chart image
+        uses: appany/helm-oci-chart-releaser@v0.3.0
+        with:
+          name: ytsaurus-identity-sync
+          repository: ${{ github.repository }}
+          tag: ${{ steps.meta.outputs.tags }}
+          path: deploy/chart/ytsaurus-identity-sync
+          registry: ${{ env.REGISTRY }}
+          registry_username: ${{ github.actor }}
+          registry_password: ${{ secrets.GITHUB_TOKEN }}

@@ -40,7 +40,7 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: [ "/ytsaurus-active-directory-integration", "--config", "/etc/ytsaurus-active-directory-integration/config.yaml" ]
+          command: [ "/ytsaurus-identity-sync", "--config", "/etc/ytsaurus-identity-sync/config.yaml" ]
           env:
             - name: YT_TOKEN
               valueFrom:
@@ -64,7 +64,7 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: config
-              mountPath: /etc/ytsaurus-active-directory-integration
+              mountPath: /etc/ytsaurus-identity-sync
           {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}

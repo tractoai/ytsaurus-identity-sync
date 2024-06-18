@@ -71,7 +71,7 @@ yt:
   token: "yt-secret-token"
 
 # NB: 'ldap' and 'azure' are supported
-# syncSource: azure
+syncSource: azure
 
 ldap:
   password: "not-here"
@@ -85,7 +85,8 @@ externalSecrets:
   secretStore:
     kind: SecretStore
     name: ""
-  externalSecretID: ""
+  ytsaurusSecretID: ""
+  sourceSecretID: ""
 
 syncConfig: |-
   # NB: Place your complete raw identity-sync config here

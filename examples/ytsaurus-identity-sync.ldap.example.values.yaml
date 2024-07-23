@@ -1,0 +1,49 @@
+image:
+  tag: "2024-04-19-569ba16"
+
+yt:
+  proxy: yt-proxy.acme.com
+  # development configuration, use externalSecrets for production.
+  token: "yt-secret-token"
+
+syncSource: ldap
+
+ldap:
+  # development configuration, use externalSecrets for production.
+  password: "ldap-password"
+
+syncConfig: |-
+  app:
+    sync_interval: 10m
+    username_replacements:
+      - from: "@acme.com"
+        to: ""
+    remove_limit: 10
+    ban_before_remove_duration: 168h # 7d
+
+  ldap:
+    address: "localhost:10210"
+    bind_dn: "cn=admin,dc=example,dc=org"
+    bind_password_env_var: "LDAP_PASSWORD"
+    base_dn: "dc=example,dc=org"
+    users:
+      filter: "(&(objectClass=posixAccount)(ou=People))"
+      username_attribute_type: "cn"
+      uid_attribute_type: "uid"
+      first_name_attribute_type: "givenName"
+    groups:
+      filter: "(objectClass=posixGroup)"
+      groupname_attribute_type: "cn"
+      member_uid_attribute_type: "memberUid"
+
+  ytsaurus:
+    proxy: "{{ .Values.yt.proxy }}"
+    apply_user_changes: true
+    apply_group_changes: true
+    apply_member_changes: true
+    timeout: 3s
+    source_attribute_name: "ldap"
+
+  logging:
+    is_production: true
+    level: DEBUG

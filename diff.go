@@ -74,7 +74,7 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 		return nil, errors.Wrap(err, "failed to calculate users diff")
 	}
 	if a.isRemoveLimitReached(len(diff.remove)) {
-		return nil, fmt.Errorf("delete limit in one cycle reached: %d %v", len(diff.remove), diff)
+		return nil, fmt.Errorf("delete limit in one cycle reached: %d", len(diff.remove))
 	}
 
 	var bannedCount, removedCount int

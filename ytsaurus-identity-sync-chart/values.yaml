@@ -88,5 +88,9 @@ externalSecrets:
   ytsaurusSecretID: ""
   sourceSecretID: ""
 
+sealedSecrets:
+  enabled: false
+  spec: {}
+
 syncConfig: |-
   # NB: Place your complete raw identity-sync config here

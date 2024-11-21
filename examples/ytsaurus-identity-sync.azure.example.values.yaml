@@ -3,13 +3,13 @@ image:
 
 yt:
   proxy: yt-proxy.acme.com
-  # development configuration, use externalSecrets for production.
+  # development configuration, use externalSecrets or sealedSecrets for production.
   token: "yt-secret-token"
 
 syncSource: azure
 
 azure:
-  # development configuration, use externalSecrets for production.
+  # development configuration, use externalSecrets or sealedSecrets for production.
   clientSecret: "azure-secret-token"
 
 syncConfig: |-

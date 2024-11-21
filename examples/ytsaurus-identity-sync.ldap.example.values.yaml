@@ -3,13 +3,13 @@ image:
 
 yt:
   proxy: yt-proxy.acme.com
-  # development configuration, use externalSecrets for production.
+  # development configuration, use externalSecrets or sealedSecrets for production.
   token: "yt-secret-token"
 
 syncSource: ldap
 
 ldap:
-  # development configuration, use externalSecrets for production.
+  # development configuration, use externalSecrets or sealedSecrets for production.
   password: "ldap-password"
 
 syncConfig: |-

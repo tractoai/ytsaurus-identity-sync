@@ -79,6 +79,10 @@ ldap:
 azure:
   clientSecret: "not-here"
 
+# not recommended for production environment
+plainSecrets:
+  enabled: false
+
 externalSecrets:
   enabled: false
 

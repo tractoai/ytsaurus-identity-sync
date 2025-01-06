@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 )
@@ -17,6 +16,10 @@ const (
 	bannedAttributeName      = "banned"
 	membersAttributeName     = "members"
 	nameAttributeName        = "name"
+)
+
+var (
+	listMaxSize = int64(65535)
 )
 
 func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client, sourceAttributeName string) ([]YtsaurusUser, error) {
@@ -31,6 +34,7 @@ func doGetAllYtsaurusUsers(ctx context.Context, client yt.Client, sourceAttribut
 		ypath.Path("//sys/users"),
 		&response,
 		&yt.ListNodeOptions{
+			MaxSize: &listMaxSize,
 			Attributes: []string{
 				bannedAttributeName,
 				bannedSinceAttributeName,

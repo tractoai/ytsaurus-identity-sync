@@ -16,13 +16,13 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- if .Values.plainSecrets.enabled }}
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/plainSecret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         {{- end }}
         {{- if .Values.externalSecrets.enabled }}
-        checksum/secret: {{ include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum }}
+        checksum/externalSecret: {{ include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum }}
         {{- end }}
         {{- if .Values.sealedSecrets.enabled }}
-        checksum/secret: {{ include (print $.Template.BasePath "/sealedsecret.yaml") . | sha256sum }}
+        checksum/sealedSecret: {{ include (print $.Template.BasePath "/sealedsecret.yaml") . | sha256sum }}
         {{- end }}
       {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}

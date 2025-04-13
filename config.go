@@ -90,7 +90,8 @@ type LdapGroupsConfig struct {
 	MemberUIDAttributeType string `yaml:"member_uid_attribute_type"`
 
 	// A list of groupnames for which app will print more debug info in logs.
-	DebugGroupnames []string `yaml:"debug_groupnames"`
+	DebugGroupnames            []string `yaml:"debug_groupnames"`
+	GroupsNameSuffixPostFilter string   `yaml:"groups_display_name_suffix_post_filter"`
 }
 
 type LdapConfig struct {

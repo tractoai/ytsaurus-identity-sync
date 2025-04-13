@@ -45,9 +45,10 @@ func (y *OpenLdapLocal) GetConfig() (*LdapConfig, error) {
 			FirstNameAttributeType: ptr.String("givenName"),
 		},
 		Groups: LdapGroupsConfig{
-			Filter:                 "(objectClass=posixGroup)",
-			GroupnameAttributeType: "cn",
-			MemberUIDAttributeType: "memberUid",
+			Filter:                     "(objectClass=posixGroup)",
+			GroupnameAttributeType:     "cn",
+			MemberUIDAttributeType:     "memberUid",
+			GroupsNameSuffixPostFilter: ".devs",
 		},
 	}, nil
 }

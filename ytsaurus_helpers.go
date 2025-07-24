@@ -81,6 +81,7 @@ func doGetAllYtsaurusGroupsWithMembers(ctx context.Context, client yt.Client, so
 		ypath.Path("//sys/groups"),
 		&response,
 		&yt.ListNodeOptions{
+			MaxSize: &listMaxSize,
 			Attributes: []string{
 				membersAttributeName,
 				sourceAttributeName,

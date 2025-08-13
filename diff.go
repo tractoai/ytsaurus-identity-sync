@@ -34,12 +34,56 @@ func (a *App) syncOnce() {
 	a.logger.Info("Start syncing")
 	defer a.logger.Info("Finish syncing")
 
+	switch a.syncStrategy {
+	case SyncStrategyUsersFirst:
+		a.syncUsersFirst()
+	case SyncStrategyGroupsFirst:
+		a.syncGroupsFirst()
+	default:
+		a.logger.Error("Unknown sync strategy", zap.String("strategy", string(a.syncStrategy)))
+	}
+}
+
+// syncUsersFirst implements the original strategy: sync all users first, then groups
+func (a *App) syncUsersFirst() {
 	actualYtsaurusUserMap, err := a.syncUsers()
 	if err != nil {
 		a.logger.Error("user sync failed", zap.Error(err))
 		return
 	}
 	err = a.syncGroups(actualYtsaurusUserMap)
+	if err != nil {
+		a.logger.Error("group sync failed", zap.Error(err))
+	}
+}
+
+// syncGroupsFirst implements the new strategy: sync groups first, then only users in those groups
+func (a *App) syncGroupsFirst() {
+	a.logger.Info("Using groups-first sync strategy")
+	
+	// Step 1: Get groups with members from source
+	sourceGroups, err := a.source.GetGroupsWithMembers()
+	if err != nil {
+		a.logger.Error("failed to get source groups", zap.Error(err))
+		return
+	}
+	
+	// Step 2: Get users that belong to these groups
+	sourceUsers, err := a.source.GetUsersByGroups(sourceGroups)
+	if err != nil {
+		a.logger.Error("failed to get users by groups", zap.Error(err))
+		return
+	}
+	
+	// Step 3: Sync users (but only those in the groups)
+	actualYtsaurusUserMap, err := a.syncUsersFiltered(sourceUsers)
+	if err != nil {
+		a.logger.Error("user sync failed", zap.Error(err))
+		return
+	}
+	
+	// Step 4: Sync groups
+	err = a.syncGroupsFiltered(sourceGroups, actualYtsaurusUserMap)
 	if err != nil {
 		a.logger.Error("group sync failed", zap.Error(err))
 	}
@@ -523,4 +567,137 @@ func (a *App) banOrRemoveUser(user YtsaurusUser) (wasBanned, wasRemoved bool, er
 	}
 	a.logger.Debugw("user is banned, but not yet removed", "user", user.Username, "since", user.BannedSince)
 	return false, false, nil
+}
+
+// syncUsersFiltered syncs only the provided source users (instead of fetching all users)
+// Returns /actual/ map[ObjectID]YtsaurusUser after applying changes.
+func (a *App) syncUsersFiltered(sourceUsers []SourceUser) (map[ObjectID]YtsaurusUser, error) {
+	a.logger.Info("Start syncing users (filtered by groups)")
+	
+	ytUsers, err := a.ytsaurus.GetUsers()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get YTsaurus users")
+	}
+
+	diff, err := a.diffUsers(sourceUsers, ytUsers)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to calculate users diff")
+	}
+	if a.isRemoveLimitReached(len(diff.remove)) {
+		return nil, fmt.Errorf("delete limit in one cycle reached: %d %v", len(diff.remove), diff.remove)
+	}
+
+	var bannedCount, removedCount int
+	var createErrCount, updateErrCount, banOrremoveErrCount int
+	for _, user := range diff.remove {
+		wasBanned, wasRemoved, removeErr := a.banOrRemoveUser(user)
+		if removeErr != nil {
+			banOrremoveErrCount++
+			a.logger.Errorw("failed to ban or remove user", zap.Error(removeErr), "user", user)
+		}
+		if wasBanned {
+			bannedCount++
+		}
+		if wasRemoved {
+			removedCount++
+		}
+	}
+	for _, user := range diff.create {
+		err = a.ytsaurus.CreateUser(user)
+		if err != nil {
+			createErrCount++
+			a.logger.Errorw("failed to create user", zap.Error(err), "user", user)
+		}
+	}
+	for _, updatedUser := range diff.update {
+		err = a.ytsaurus.UpdateUser(updatedUser.OldUsername, updatedUser.YtsaurusUser)
+		if err != nil {
+			updateErrCount++
+			a.logger.Errorw("failed to update user", zap.Error(err), "user", updatedUser)
+		}
+	}
+	a.logger.Infow("Finish syncing users (filtered)",
+		"created", len(diff.create)-createErrCount,
+		"create_errors", createErrCount,
+		"updated", len(diff.update)-updateErrCount,
+		"update_errors", updateErrCount,
+		"removed", removedCount,
+		"banned", bannedCount,
+		"ban_or_remove_errors", banOrremoveErrCount,
+	)
+	return diff.result, nil
+}
+
+// syncGroupsFiltered syncs only the provided source groups (instead of fetching all groups)
+func (a *App) syncGroupsFiltered(sourceGroups []SourceGroupWithMembers, usersMap map[ObjectID]YtsaurusUser) error {
+	a.logger.Info("Start syncing groups (filtered)")
+	
+	ytGroups, err := a.ytsaurus.GetGroupsWithMembers()
+	if err != nil {
+		return errors.Wrap(err, "failed to get YTsaurus groups")
+	}
+
+	diff, err := a.diffGroups(sourceGroups, ytGroups, usersMap)
+	if err != nil {
+		return errors.Wrap(err, "failed to calculate groups diff")
+	}
+	if a.isRemoveLimitReached(len(diff.groupsToRemove)) {
+		return fmt.Errorf("delete limit in one cycle reached: %d %v", len(diff.groupsToRemove), diff)
+	}
+
+	var createErrCount, updateErrCount, removeErrCount int
+	for _, group := range diff.groupsToRemove {
+		err = a.ytsaurus.RemoveGroup(group.Name)
+		if err != nil {
+			removeErrCount++
+			a.logger.Errorw("failed to remove group", zap.Error(err), "group", group)
+		}
+	}
+	for _, group := range diff.groupsToCreate {
+		err = a.ytsaurus.CreateGroup(group)
+		if err != nil {
+			createErrCount++
+			a.logger.Errorw("failed to create group", zap.Error(err), "group", group)
+		}
+	}
+	for _, updatedGroup := range diff.groupsToUpdate {
+		err = a.ytsaurus.UpdateGroup(updatedGroup.OldName, updatedGroup.YtsaurusGroup)
+		if err != nil {
+			updateErrCount++
+			a.logger.Errorw("failed to update group", zap.Error(err), "group", updatedGroup)
+		}
+	}
+	a.logger.Infow("Finish syncing groups (filtered)",
+		"created", len(diff.groupsToCreate)-createErrCount,
+		"create_errors", createErrCount,
+		"updated", len(diff.groupsToUpdate)-updateErrCount,
+		"update_errors", updateErrCount,
+		"removed", len(diff.groupsToRemove)-removeErrCount,
+		"remove_errors", removeErrCount,
+	)
+
+	a.logger.Info("Start syncing group memberships (filtered)")
+	var addMemberErrCount, removeMemberErrCount int
+	for _, membership := range diff.membersToRemove {
+		err = a.ytsaurus.RemoveMember(membership.Username, membership.GroupName)
+		if err != nil {
+			removeMemberErrCount++
+			a.logger.Errorw("failed to remove member", zap.Error(err), "user", membership.Username, "group", membership.GroupName)
+		}
+	}
+	for _, membership := range diff.membersToAdd {
+		err = a.ytsaurus.AddMember(membership.Username, membership.GroupName)
+		if err != nil {
+			addMemberErrCount++
+			a.logger.Errorw("failed to add member", zap.Error(err), "user", membership.Username, "group", membership.GroupName)
+		}
+	}
+
+	a.logger.Infow("Finish syncing group memberships (filtered)",
+		"added", len(diff.membersToAdd)-addMemberErrCount,
+		"add_errors", addMemberErrCount,
+		"removed", len(diff.membersToRemove)-removeMemberErrCount,
+		"remove_errors", removeMemberErrCount,
+	)
+	return nil
 }

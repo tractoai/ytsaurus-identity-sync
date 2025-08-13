@@ -359,3 +359,95 @@ func (a *AzureReal) getGroupMembers(ctx context.Context, groupID string) ([]mode
 	return rawMembers, nil
 
 }
+
+// GetUsersByGroups returns users that belong to the specified groups
+func (a *AzureReal) GetUsersByGroups(groups []SourceGroupWithMembers) ([]SourceUser, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
+	defer cancel()
+
+	// Extract all unique user IDs from the groups
+	userIDs := NewStringSet()
+	for _, group := range groups {
+		for userID := range group.Members.Iter() {
+			userIDs.Add(userID)
+		}
+	}
+
+	if userIDs.Cardinality() == 0 {
+		a.logger.Info("No users found in the provided groups")
+		return []SourceUser{}, nil
+	}
+
+	// Convert user IDs to slice for batch fetching
+	userIDSlice := userIDs.ToSlice()
+	a.logger.Infow("Fetching users from groups", "user_count", len(userIDSlice))
+
+	// Fetch users by their IDs
+	var users []SourceUser
+	var usersSkipped int
+
+	// Microsoft Graph has a limit on batch requests, so we might need to process in chunks
+	// For simplicity, we'll fetch users one by one, but this could be optimized with batch requests
+	for _, userID := range userIDSlice {
+		user, err := a.getUserByID(ctx, userID)
+		if err != nil {
+			a.logger.Warnw("Failed to fetch user by ID", "user_id", userID, "error", err)
+			usersSkipped++
+			continue
+		}
+		if user != nil {
+			users = append(users, *user)
+		} else {
+			usersSkipped++
+		}
+	}
+
+	a.logger.Infow("Fetched users by groups", "fetched", len(users), "skipped", usersSkipped)
+	return users, nil
+}
+
+// getUserByID fetches a single user by their Azure ID
+func (a *AzureReal) getUserByID(ctx context.Context, userID string) (*AzureUser, error) {
+	requestParameters := &msgraphusers.UserItemRequestBuilderGetQueryParameters{
+		Select: defaultUserFieldsToSelect,
+	}
+	configuration := &msgraphusers.UserItemRequestBuilderGetRequestConfiguration{
+		QueryParameters: requestParameters,
+	}
+
+	user, err := a.graphClient.Users().ByUserId(userID).Get(ctx, configuration)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get user by ID: %s", userID)
+	}
+
+	// Extract user data
+	principalName := handleNil(user.GetUserPrincipalName())
+	id := handleNil(user.GetId())
+	mail := handleNil(user.GetMail())
+	firstName := handleNil(user.GetGivenName())
+	lastName := handleNil(user.GetSurname())
+	displayName := handleNil(user.GetDisplayName())
+	accountEnabled := user.GetAccountEnabled()
+
+	a.maybePrintDebugLogs(id, "principalName", principalName, "accountEnabled", accountEnabled)
+
+	// Skip disabled accounts or users without principal names
+	if accountEnabled == nil || !*accountEnabled {
+		a.logger.Debugw("Skipping disabled user", "user_id", id, "principal_name", principalName)
+		return nil, nil
+	}
+
+	if principalName == "" {
+		a.logger.Debugw("Skipping user with empty principal name", "user_id", id)
+		return nil, nil
+	}
+
+	return &AzureUser{
+		PrincipalName: principalName,
+		AzureID:       id,
+		Email:         mail,
+		FirstName:     firstName,
+		LastName:      lastName,
+		DisplayName:   displayName,
+	}, nil
+}

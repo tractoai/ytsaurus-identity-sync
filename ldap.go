@@ -92,3 +92,86 @@ func (l *Ldap) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 	}
 	return groups, nil
 }
+
+// GetUsersByGroups returns users that belong to the specified groups
+func (l *Ldap) GetUsersByGroups(groups []SourceGroupWithMembers) ([]SourceUser, error) {
+	// Extract all unique user UIDs from the groups
+	userUIDs := NewStringSet()
+	for _, group := range groups {
+		for userUID := range group.Members.Iter() {
+			userUIDs.Add(userUID)
+		}
+	}
+
+	if userUIDs.Cardinality() == 0 {
+		l.logger.Info("No users found in the provided groups")
+		return []SourceUser{}, nil
+	}
+
+	// Convert to slice and build filter
+	userUIDSlice := userUIDs.ToSlice()
+	l.logger.Infow("Fetching users from groups", "user_count", len(userUIDSlice))
+
+	// Build LDAP filter to get users with specific UIDs
+	// Example: (|(uid=user1)(uid=user2)(uid=user3))
+	var filterParts []string
+	for _, uid := range userUIDSlice {
+		filterParts = append(filterParts, "("+l.config.Users.UIDAttributeType+"="+uid+")")
+	}
+	
+	var filter string
+	if len(filterParts) == 1 {
+		filter = filterParts[0]
+	} else {
+		filter = "(|" + joinStrings(filterParts, "") + ")"
+	}
+
+	// Also combine with the existing user filter if present
+	if l.config.Users.Filter != "" {
+		filter = "(&" + l.config.Users.Filter + filter + ")"
+	}
+
+	res, err := l.connection.Search(&ldap.SearchRequest{
+		BaseDN:     l.config.BaseDN,
+		Filter:     filter,
+		Attributes: []string{"*"},
+		Scope:      ldap.ScopeWholeSubtree,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var users []SourceUser
+	for _, entry := range res.Entries {
+		username := entry.GetAttributeValue(l.config.Users.UsernameAttributeType)
+		uid := entry.GetAttributeValue(l.config.Users.UIDAttributeType)
+		var firstName string
+		if l.config.Users.FirstNameAttributeType != nil {
+			firstName = entry.GetAttributeValue(*l.config.Users.FirstNameAttributeType)
+		}
+		users = append(users, LdapUser{
+			Username:  username,
+			UID:       uid,
+			FirstName: firstName,
+		})
+	}
+
+	l.logger.Infow("Fetched users by groups", "fetched", len(users))
+	return users, nil
+}
+
+// Helper function to join strings
+func joinStrings(parts []string, separator string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	
+	result := parts[0]
+	for i := 1; i < len(parts); i++ {
+		result += separator + parts[i]
+	}
+	return result
+}

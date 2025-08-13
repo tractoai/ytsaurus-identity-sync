@@ -18,10 +18,13 @@ type Source interface {
 	GetGroupsWithMembers() ([]SourceGroupWithMembers, error)
 	CreateUserFromRaw(raw map[string]any) (SourceUser, error)
 	CreateGroupFromRaw(raw map[string]any) (SourceGroup, error)
+	// GetUsersByGroups returns users that belong to the specified groups
+	GetUsersByGroups(groups []SourceGroupWithMembers) ([]SourceUser, error)
 }
 
 type App struct {
 	syncInterval      time.Duration
+	syncStrategy      SyncStrategy
 	usernameReplaces  []ReplacementPair
 	groupnameReplaces []ReplacementPair
 	removeLimit       int
@@ -69,8 +72,15 @@ func NewAppCustomized(cfg *Config, logger appLoggerType, source Source, clock cl
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGUSR1)
 
+	// Default to users_first strategy if not specified
+	strategy := cfg.App.SyncStrategy
+	if strategy == "" {
+		strategy = SyncStrategyUsersFirst
+	}
+
 	return &App{
 		syncInterval:      cfg.App.SyncInterval,
+		syncStrategy:      strategy,
 		usernameReplaces:  cfg.App.UsernameReplacements,
 		groupnameReplaces: cfg.App.GroupnameReplacements,
 		removeLimit:       cfg.App.RemoveLimit,

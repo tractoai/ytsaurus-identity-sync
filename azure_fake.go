@@ -32,3 +32,24 @@ func (a *AzureFake) GetUsers() ([]SourceUser, error) {
 func (a *AzureFake) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 	return a.groups, nil
 }
+
+// GetUsersByGroups returns users that belong to the specified groups
+func (a *AzureFake) GetUsersByGroups(groups []SourceGroupWithMembers) ([]SourceUser, error) {
+	// Extract all unique user IDs from the groups
+	userIDs := NewStringSet()
+	for _, group := range groups {
+		for userID := range group.Members.Iter() {
+			userIDs.Add(userID)
+		}
+	}
+
+	// Filter users that are in the groups
+	var filteredUsers []SourceUser
+	for _, user := range a.users {
+		if userIDs.Contains(user.GetID()) {
+			filteredUsers = append(filteredUsers, user)
+		}
+	}
+
+	return filteredUsers, nil
+}

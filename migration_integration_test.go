@@ -146,3 +146,23 @@ func TestGroupsMigration(t *testing.T) {
 
 	}
 }
+
+func TestGroupsDebug(t *testing.T) {
+	cfg, err := loadConfig("config.local.yaml")
+	require.NoError(t, err)
+
+	logger, err := configureLogger(&cfg.Logging)
+	require.NoError(t, err)
+	yt, err := NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
+	require.NoError(t, err)
+	azure, err := NewAzureReal(cfg.Azure, logger)
+	require.NoError(t, err)
+
+	sourceGroups, err := azure.GetGroupsWithMembers()
+	require.NoError(t, err)
+	t.Log("Got", len(sourceGroups), "Azure groups")
+
+	ytGroups, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), yt.client, cfg.Ytsaurus.SourceAttributeName)
+	require.NoError(t, err)
+	t.Log("Got", len(ytGroups), "raw YTsaurus groups")
+}

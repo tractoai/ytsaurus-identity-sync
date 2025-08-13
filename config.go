@@ -14,10 +14,24 @@ type Config struct {
 	Ldap  *LdapConfig  `yaml:"ldap,omitempty"`
 }
 
+type SyncStrategy string
+
+const (
+	// SyncStrategyUsersFirst syncs all users first, then groups (current behavior)
+	SyncStrategyUsersFirst SyncStrategy = "users_first"
+	// SyncStrategyGroupsFirst syncs groups first, then only users that belong to those groups
+	SyncStrategyGroupsFirst SyncStrategy = "groups_first"
+)
+
 type AppConfig struct {
 	// SyncInterval is the interval between full synchronizations.
 	// If it is not speciied or value is zero than auto-sync disabled (sync can be invoked only manually).
 	SyncInterval time.Duration `yaml:"sync_interval"`
+
+	// SyncStrategy determines the order of synchronization.
+	// "users_first" (default): sync all users first, then groups with existing users
+	// "groups_first": sync groups first, then only users that belong to those groups
+	SyncStrategy SyncStrategy `yaml:"sync_strategy,omitempty"`
 
 	// UsernameReplacements is a list of replaces which will be applied to a username for source (Azure or Ldap).
 	// For example, you may use it to strip off characters like @ which are not recommended for use

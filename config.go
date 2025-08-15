@@ -48,6 +48,9 @@ type AzureConfig struct {
 	// UsersFilter is MS Graph $filter value used for user fetching requests.
 	// See https://learn.microsoft.com/en-us/graph/api/user-list?#optional-query-parameters
 	UsersFilter string `yaml:"users_filter"`
+	// UserGroupsFilter is MS Graph $filter value used for getting groups whose members will be synced as users.
+	// If empty, all users matching UsersFilter will be synced.
+	UserGroupsFilter string `yaml:"user_groups_filter"`
 	// GroupsFilter is MS Graph $filter value used for group fetching requests.
 	// See https://learn.microsoft.com/en-us/graph/api/group-list
 	GroupsFilter string `yaml:"groups_filter"`

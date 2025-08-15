@@ -99,3 +99,44 @@ func TestLdapConfig(t *testing.T) {
 	require.NoError(t, err)
 	logger.Debugw("test logging message", "key", "val")
 }
+
+func TestLdapWithGroupsFirstStrategyFails(t *testing.T) {
+	cfg := &Config{
+		App: AppConfig{
+			SyncStrategy: SyncStrategyGroupsFirst,
+		},
+		Ldap: &LdapConfig{
+			Address:            "ldap://localhost:389",
+			BindDN:             "cn=admin,dc=example,dc=org",
+			BindPasswordEnvVar: "LDAP_PASSWORD",
+			BaseDN:             "dc=example,dc=org",
+			Users: LdapUsersConfig{
+				Filter:                "(objectClass=posixAccount)",
+				UsernameAttributeType: "cn",
+				UIDAttributeType:      "uid",
+			},
+			Groups: LdapGroupsConfig{
+				Filter:                 "(objectClass=posixGroup)",
+				GroupnameAttributeType: "cn",
+				MemberUIDAttributeType: "memberUid",
+			},
+		},
+		Ytsaurus: YtsaurusConfig{
+			Proxy:              "localhost:10110",
+			ApplyUserChanges:   true,
+			ApplyGroupChanges:  true,
+			ApplyMemberChanges: true,
+		},
+		Logging: LoggingConfig{
+			Level: "INFO",
+		},
+	}
+
+	logger, err := configureLogger(&cfg.Logging)
+	require.NoError(t, err)
+
+	// This should fail with validation error
+	_, err = NewApp(cfg, logger)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "groups-first sync strategy is not supported for LDAP source")
+}

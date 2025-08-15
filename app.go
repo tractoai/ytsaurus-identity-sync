@@ -43,6 +43,15 @@ func NewApp(cfg *Config, logger appLoggerType) (*App, error) {
 		return nil, errors.New("one and only one source should be specified")
 	}
 
+	// Validate that LDAP source doesn't use groups-first strategy
+	strategy := cfg.App.SyncStrategy
+	if strategy == "" {
+		strategy = SyncStrategyUsersFirst
+	}
+	if cfg.Ldap != nil && strategy == SyncStrategyGroupsFirst {
+		return nil, errors.New("groups-first sync strategy is not supported for LDAP source, use users-first strategy instead")
+	}
+
 	var err error
 	var source Source
 	if cfg.Azure != nil {
@@ -76,6 +85,11 @@ func NewAppCustomized(cfg *Config, logger appLoggerType, source Source, clock cl
 	strategy := cfg.App.SyncStrategy
 	if strategy == "" {
 		strategy = SyncStrategyUsersFirst
+	}
+
+	// Validate that LDAP source doesn't use groups-first strategy
+	if cfg.Ldap != nil && strategy == SyncStrategyGroupsFirst {
+		return nil, errors.New("groups-first sync strategy is not supported for LDAP source, use users-first strategy instead")
 	}
 
 	return &App{

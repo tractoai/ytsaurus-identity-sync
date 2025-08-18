@@ -173,7 +173,11 @@ func (a *AzureReal) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	defer cancel()
 
-	groupsRaw, err := a.getGroupsWithMembersRaw(ctx, defaultGroupFieldsToSelect, a.groupsFilter)
+	return a.getGroupsWithMembers(ctx, defaultGroupFieldsToSelect, a.groupsFilter)
+}
+
+func (a *AzureReal) getGroupsWithMembers(ctx context.Context, fieldsToSelect []string, filter string) ([]SourceGroupWithMembers, error) {
+	groupsRaw, err := a.getGroupsWithMembersRaw(ctx, fieldsToSelect, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -295,34 +299,17 @@ func (a *AzureReal) filterUsersByGroupMembership(ctx context.Context, users []mo
 		return users, nil
 	}
 
-	// Get groups that match the user groups filter
-	groupsRaw, err := a.getGroupsWithMembersRaw(ctx, []string{"id"}, a.userGroupsFilter)
+	// Get groups that match the user groups filter using the new method
+	groups, err := a.getGroupsWithMembers(ctx, []string{"id"}, a.userGroupsFilter)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get user groups for filtering")
 	}
 
 	// Collect all member IDs from the filtered groups
 	allowedUserIDs := NewStringSet()
-	for _, group := range groupsRaw {
-		groupID := handleNil(group.GetId())
-		if groupID == "" {
-			continue
-		}
-
-		members := group.GetMembers()
-		if len(members) == msgraphExpandLimit {
-			// By default, $expand returns only 20 members, for those groups we collect all users by group id.
-			members, err = a.getGroupMembers(ctx, groupID)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to fetch all members for group %s", groupID)
-			}
-		}
-
-		for _, member := range members {
-			memberID := member.GetId()
-			if memberID != nil {
-				allowedUserIDs.Add(*memberID)
-			}
+	for _, group := range groups {
+		for _, memberID := range group.Members.ToSlice() {
+			allowedUserIDs.Add(memberID)
 		}
 	}
 

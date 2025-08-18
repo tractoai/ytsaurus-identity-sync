@@ -30,9 +30,10 @@ const (
 )
 
 type testCase struct {
-	name      string
-	appConfig *AppConfig
-	testTime  time.Time
+	name        string
+	appConfig   *AppConfig
+	azureConfig *AzureConfig
+	testTime    time.Time
 
 	sourceUsersSetUp []SourceUser
 	ytUsersSetUp     []YtsaurusUser

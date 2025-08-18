@@ -56,6 +56,10 @@ var (
 		AzureID:     "fake-az-acme.hq",
 		DisplayName: "acme.hq",
 	}
+	qaAzureGroup = AzureGroup{
+		AzureID:     "fake-az-acme.qa",
+		DisplayName: "acme.qa|all",
+	}
 	devsAzureGroupChangedDisplayName = AzureGroup{
 		AzureID:     devsAzureGroup.AzureID,
 		DisplayName: "acme.developers|all",
@@ -460,6 +464,32 @@ var (
 				},
 			},
 		},
+		{
+			name: "user-groups-filter-only-devs",
+			azureConfig: &AzureConfig{
+				UserGroupsFilter: devsAzureGroup.DisplayName,
+			},
+			sourceUsersSetUp: []SourceUser{
+				aliceAzure,
+				bobAzure,
+				carolAzure,
+			},
+			sourceGroupsSetUp: []SourceGroupWithMembers{
+				{
+					SourceGroup: devsAzureGroup,
+					Members:     NewStringSetFromItems(aliceAzure.AzureID),
+				},
+				{
+					SourceGroup: qaAzureGroup,
+					Members:     NewStringSetFromItems(bobAzure.AzureID, carolAzure.AzureID),
+				},
+			},
+			ytUsersSetUp: []YtsaurusUser{},
+			// Only Alice should be synced as she's in the devs group
+			ytUsersExpected: []YtsaurusUser{
+				aliceYtsaurus,
+			},
+		},
 	}
 )
 
@@ -496,7 +526,12 @@ func (suite *AppTestSuite) TestAzureSyncOnce() {
 					}
 					passiveClock := testclock.NewFakePassiveClock(tc.testTime)
 
-					azure := NewAzureFake()
+					var azure *AzureFake
+					if tc.azureConfig != nil {
+						azure = NewAzureFakeWithConfig(tc.azureConfig)
+					} else {
+						azure = NewAzureFake()
+					}
 					azure.setUsers(tc.sourceUsersSetUp)
 					azure.setGroups(tc.sourceGroupsSetUp)
 

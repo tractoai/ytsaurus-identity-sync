@@ -300,7 +300,7 @@ func (a *AzureReal) filterUsersByGroupMembership(ctx context.Context, users []mo
 	}
 
 	// Get groups that match the user groups filter using the new method
-	groups, err := a.getGroupsWithMembers(ctx, []string{"id"}, a.userGroupsFilter)
+	groups, err := a.getGroupsWithMembers(ctx, defaultGroupFieldsToSelect, a.userGroupsFilter)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get user groups for filtering")
 	}

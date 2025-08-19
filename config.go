@@ -45,18 +45,26 @@ type AzureConfig struct {
 	ClientID           string `yaml:"client_id"`
 	ClientSecretEnvVar string `yaml:"client_secret_env_var"` // default: "AZURE_CLIENT_SECRET"
 
-	// We are syncing 3 things: users, groups and memberships.
-	// Groups are synced using `groups_filter`.
-	// Users are synced using `users_filter` and optional `user_groups_filter`.
-	// N.B. `user_groups_filter` is a filter for fetching *groups* and their members, which later used to filter users,
-	// it works independently to `groups_filter`, since in general case groups from which we sync users and groups we
-	//want to have in the ytsaurus can be different set of groups.
-	// Memberships are synced from azure, skipping the memberships for users and groups which were filtered out.
-	// UsersFilter, UserGroupsFilter and GroupsFilter format is MS Graph $filter value used for user fetching requests.
+	// We sync 3 entities independently: users, groups, and memberships.
+	//
+	// USERS are filtered using TWO filters applied sequentially:
+	// 1. `users_filter` - MS Graph $filter for user requests (e.g., accountEnabled eq true)
+	// 2. `user_groups_filter` - MS Graph $filter for group requests to get groups whose members will be synced as users
+	//    This is needed because MS Graph user API doesn't support filtering by group membership.
+	//    Only users who match BOTH filters will be synced (users_filter AND membership in user_groups_filter groups).
+	//
+	// GROUPS are filtered independently using:
+	// - `groups_filter` - MS Graph $filter for group requests
+	//   This works independently from `user_groups_filter` because the set of groups you want to sync
+	//   may be different from the groups whose members you want to sync as users.
+	//
+	// MEMBERSHIPS are synced from Azure, excluding memberships for users and groups that didn't match their respective filters.
+	//
+	// All filter formats follow MS Graph $filter OData syntax.
 	// See https://learn.microsoft.com/en-us/graph/api/user-list?#optional-query-parameters
-	UsersFilter      string `yaml:"users_filter"`
-	UserGroupsFilter string `yaml:"user_groups_filter"`
-	GroupsFilter     string `yaml:"groups_filter"`
+	UsersFilter      string `yaml:"users_filter"`      // Filter for MS Graph users API
+	UserGroupsFilter string `yaml:"user_groups_filter"` // Filter for MS Graph groups API to determine which users to sync
+	GroupsFilter     string `yaml:"groups_filter"`      // Filter for MS Graph groups API to determine which groups to sync
 
 	// TODO(nadya73): support for ldap also, but with other name.
 	// GroupsDisplayNameSuffixPostFilter is deprecated: use GroupsDisplayNameRegexPostFilter instead.

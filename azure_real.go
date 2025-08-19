@@ -46,6 +46,7 @@ type AzureReal struct {
 	usersFilter                      string
 	groupsFilter                     string
 	groupsDisplayNameRegexPostFilter *regexp.Regexp
+	userGroupsFilter                 string
 
 	logger  appLoggerType
 	timeout time.Duration
@@ -95,6 +96,7 @@ func NewAzureReal(cfg *AzureConfig, logger appLoggerType) (*AzureReal, error) {
 		usersFilter:                      cfg.UsersFilter,
 		groupsFilter:                     cfg.GroupsFilter,
 		groupsDisplayNameRegexPostFilter: postFilterRegex,
+		userGroupsFilter:                 cfg.UserGroupsFilter,
 
 		graphClient:   graphClient,
 		logger:        logger,
@@ -171,7 +173,11 @@ func (a *AzureReal) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	defer cancel()
 
-	groupsRaw, err := a.getGroupsWithMembersRaw(ctx, defaultGroupFieldsToSelect, a.groupsFilter)
+	return a.getGroupsWithMembers(ctx, defaultGroupFieldsToSelect, a.groupsFilter)
+}
+
+func (a *AzureReal) getGroupsWithMembers(ctx context.Context, fieldsToSelect []string, filter string) ([]SourceGroupWithMembers, error) {
+	groupsRaw, err := a.getGroupsWithMembersRaw(ctx, fieldsToSelect, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +282,47 @@ func (a *AzureReal) getUsersRaw(ctx context.Context, fieldsToSelect []string, fi
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to iterate over Azure users")
 	}
+
+	// If user groups filter is specified, filter users by group membership
+	if a.userGroupsFilter != "" {
+		rawUsers, err = a.filterUsersByGroupMembership(ctx, rawUsers)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to filter users by group membership")
+		}
+	}
+
 	return rawUsers, nil
+}
+
+func (a *AzureReal) filterUsersByGroupMembership(ctx context.Context, users []models.Userable) ([]models.Userable, error) {
+	if a.userGroupsFilter == "" {
+		return users, nil
+	}
+
+	// Get groups that match the user groups filter using the new method
+	groups, err := a.getGroupsWithMembers(ctx, defaultGroupFieldsToSelect, a.userGroupsFilter)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get user groups for filtering")
+	}
+
+	// Collect all member IDs from the filtered groups
+	allowedUserIDs := NewStringSet()
+	for _, group := range groups {
+		for _, memberID := range group.Members.ToSlice() {
+			allowedUserIDs.Add(memberID)
+		}
+	}
+
+	// Filter users to only include those who are members of the filtered groups
+	var filteredUsers []models.Userable
+	for _, user := range users {
+		userID := handleNil(user.GetId())
+		if userID != "" && allowedUserIDs.Contains(userID) {
+			filteredUsers = append(filteredUsers, user)
+		}
+	}
+
+	return filteredUsers, nil
 }
 
 func (a *AzureReal) getGroupsWithMembersRaw(ctx context.Context, fieldsToSelect []string, filter string) ([]models.Groupable, error) {

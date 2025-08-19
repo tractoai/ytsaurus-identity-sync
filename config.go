@@ -62,7 +62,7 @@ type AzureConfig struct {
 	//
 	// All filter formats follow MS Graph $filter OData syntax.
 	// See https://learn.microsoft.com/en-us/graph/api/user-list?#optional-query-parameters
-	UsersFilter      string `yaml:"users_filter"`      // Filter for MS Graph users API
+	UsersFilter      string `yaml:"users_filter"`       // Filter for MS Graph users API
 	UserGroupsFilter string `yaml:"user_groups_filter"` // Filter for MS Graph groups API to determine which users to sync
 	GroupsFilter     string `yaml:"groups_filter"`      // Filter for MS Graph groups API to determine which groups to sync
 

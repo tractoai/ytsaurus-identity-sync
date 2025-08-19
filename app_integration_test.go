@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	ytcontainer "github.com/tractoai/testcontainers-ytsaurus"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/ythttp"
 )
 
 const (
@@ -25,19 +27,25 @@ func TestAppIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	var ytLocal *ytcontainer.YTsaurusContainer
+	var ytClient yt.Client
 	if runLocalYtsaurus {
+		var ytLocal *ytcontainer.YTsaurusContainer
 		ytLocal, err = ytcontainer.RunContainer(ctx)
 		require.NoError(t, err)
 		defer func() { require.NoError(t, ytLocal.Terminate(ctx)) }()
+		ytClient, err = ytLocal.NewClient(ctx)
+		require.NoError(t, err)
+	} else {
+		ytClient, err = ythttp.NewClient(&yt.Config{
+			Proxy: cfg.Ytsaurus.Proxy,
+		})
+		require.NoError(t, err)
 	}
 
 	logger, err := configureLogger(&cfg.Logging)
 	require.NoError(t, err)
 	app, err := NewApp(cfg, logger)
 	require.NoError(t, err)
-
-	ytClient, err := ytLocal.NewClient(ctx)
 
 	usersBefore, err := doGetAllYtsaurusUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)

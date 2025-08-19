@@ -45,15 +45,18 @@ type AzureConfig struct {
 	ClientID           string `yaml:"client_id"`
 	ClientSecretEnvVar string `yaml:"client_secret_env_var"` // default: "AZURE_CLIENT_SECRET"
 
-	// UsersFilter is MS Graph $filter value used for user fetching requests.
+	// We are syncing 3 things: users, groups and memberships.
+	// Groups are synced using `groups_filter`.
+	// Users are synced using `users_filter` and optional `user_groups_filter`.
+	// N.B. `user_groups_filter` is a filter for fetching *groups* and their members, which later used to filter users,
+	// it works independently to `groups_filter`, since in general case groups from which we sync users and groups we
+	//want to have in the ytsaurus can be different set of groups.
+	// Memberships are synced from azure, skipping the memberships for users and groups which were filtered out.
+	// UsersFilter, UserGroupsFilter and GroupsFilter format is MS Graph $filter value used for user fetching requests.
 	// See https://learn.microsoft.com/en-us/graph/api/user-list?#optional-query-parameters
-	UsersFilter string `yaml:"users_filter"`
-	// UserGroupsFilter is MS Graph $filter value used for getting groups whose members will be synced as users.
-	// If empty, all users matching UsersFilter will be synced.
+	UsersFilter      string `yaml:"users_filter"`
 	UserGroupsFilter string `yaml:"user_groups_filter"`
-	// GroupsFilter is MS Graph $filter value used for group fetching requests.
-	// See https://learn.microsoft.com/en-us/graph/api/group-list
-	GroupsFilter string `yaml:"groups_filter"`
+	GroupsFilter     string `yaml:"groups_filter"`
 
 	// TODO(nadya73): support for ldap also, but with other name.
 	// GroupsDisplayNameSuffixPostFilter is deprecated: use GroupsDisplayNameRegexPostFilter instead.

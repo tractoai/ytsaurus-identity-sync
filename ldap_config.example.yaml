@@ -33,6 +33,7 @@ ytsaurus:
   apply_member_changes: true
   timeout: 1s
   log_level: DEBUG
+  use_tls: false
 
 logging:
   level: WARN

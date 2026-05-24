@@ -57,6 +57,7 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 		Credentials: &yt.TokenCredentials{
 			Token: secret,
 		},
+		UseTLS: cfg.UseTLS,
 	})
 	if err != nil {
 		return nil, err

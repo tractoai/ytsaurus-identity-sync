@@ -43,6 +43,7 @@ syncConfig: |-
     apply_member_changes: true
     timeout: 3s
     source_attribute_name: "ldap"
+    use_tls: false
 
   logging:
     is_production: true

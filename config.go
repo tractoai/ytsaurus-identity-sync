@@ -136,6 +136,8 @@ type YtsaurusConfig struct {
 	DebugGroupnames []string `yaml:"debug_groupnames"`
 	// The attribute name of user/group object in YTsaurus.
 	SourceAttributeName string `yaml:"source_attribute_name"`
+	// UseTLS tells the YT SDK to use TLS for all connections to the cluster.
+	UseTLS bool `yaml:"use_tls"`
 }
 
 type LoggingConfig struct {

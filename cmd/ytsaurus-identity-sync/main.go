@@ -8,6 +8,7 @@ import (
 	"github.com/tractoai/ytsaurus-identity-sync/internal/app"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/logging"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/sources"
 	"go.uber.org/zap"
 )
 
@@ -49,7 +50,12 @@ func run(configFilePath string) error {
 		"struct", cfg,
 	)
 
-	application, err := app.NewApp(cfg, logger)
+	src, err := sources.New(cfg, logger)
+	if err != nil {
+		return err
+	}
+
+	application, err := app.NewApp(cfg, logger, src)
 	if err != nil {
 		return err
 	}

@@ -105,16 +105,16 @@ func (a *App) syncUsers() (map[source.ObjectID]internalyt.YtsaurusUser, error) {
 
 func (a *App) syncGroups(usersMap map[source.ObjectID]internalyt.YtsaurusUser) error {
 	a.logger.Info("Start syncing groups")
-	azureGroups, err := a.source.GetGroupsWithMembers()
+	sourceGroups, err := a.source.GetGroupsWithMembers()
 	if err != nil {
-		return errors.Wrap(err, "failed to get Source groups")
+		return errors.Wrap(err, "failed to get source groups")
 	}
 	ytGroups, err := a.ytsaurus.GetGroupsWithMembers()
 	if err != nil {
 		return errors.Wrap(err, "failed to get YTsaurus groups")
 	}
 
-	diff, err := a.diffGroups(azureGroups, ytGroups, usersMap)
+	diff, err := a.diffGroups(sourceGroups, ytGroups, usersMap)
 	if err != nil {
 		return errors.Wrap(err, "failed to calculate groups diff")
 	}
@@ -207,7 +207,7 @@ func (a *App) diffGroups(
 	for _, group := range ytGroups {
 		sourceGroup, err := a.buildSourceGroup(&group)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to create azure group from source")
+			return nil, errors.Wrap(err, "failed to create group from source")
 		}
 		ytGroupsWithMembersMap[sourceGroup.GetID()] = group
 	}
@@ -230,7 +230,7 @@ func (a *App) diffGroups(
 	}
 
 	for objectID, ytGroupWithMembers := range ytGroupsWithMembersMap {
-		// Collecting groups to remove (the ones that exist in YTsaurus and not in Azure).
+		// Collecting groups to remove (the ones that exist in YTsaurus and not in the source).
 		sourceGroupWithMembers, ok := sourceGroupsWithMembersMap[objectID]
 		if !ok {
 			groupsToRemove = append(groupsToRemove, ytGroupWithMembers.YtsaurusGroup)
@@ -246,7 +246,7 @@ func (a *App) diffGroups(
 		// Group name can change after update, so we ensure that correct one is used for membership updates.
 		actualGroupname := ytGroupWithMembers.YtsaurusGroup.Name
 		if groupChanged {
-			// This shouldn't happen until we add more fields in YTsaurus' group @azure attribute.
+			// This shouldn't happen until we add more fields in YTsaurus' group source attribute.
 			a.logger.Warnw(
 				"Detected group fields update (we handling that correctly, though case is not expected)",
 				"source_group", sourceGroupWithMembers.SourceGroup,
@@ -414,8 +414,8 @@ func (a *App) buildYtsaurusGroup(sourceGroup source.SourceGroup) (internalyt.Yts
 
 func (a *App) buildYtsaurusGroupMembers(sourceGroupWithMembers source.SourceGroupWithMembers, usersMap map[source.ObjectID]internalyt.YtsaurusUser) mapset.Set[string] {
 	members := NewStringSet()
-	for azureID := range sourceGroupWithMembers.Members.Iter() {
-		ytUser, ok := usersMap[azureID]
+	for sourceID := range sourceGroupWithMembers.Members.Iter() {
+		ytUser, ok := usersMap[sourceID]
 		if !ok {
 			// User is unknown to the YTsaurus (can be accountEnabled=false).
 			continue

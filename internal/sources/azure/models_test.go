@@ -4,6 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
+)
+
+var (
+	_ source.SourceUser  = AzureUser{}
+	_ source.SourceGroup = AzureGroup{}
+	_ source.Source      = (*AzureReal)(nil)
 )
 
 // TestAzureUser ensures that raw representation has expected value.
@@ -48,4 +55,36 @@ func TestAzureGroup(t *testing.T) {
 		},
 		rawGroup,
 	)
+}
+
+func TestCreateFromRaw(t *testing.T) {
+	azureSource := &AzureReal{}
+
+	user, err := azureSource.CreateUserFromRaw(map[string]any{
+		"principal_name": "alice@acme.com",
+		"id":             "alice-id",
+		"email":          "alice@acme.com",
+		"first_name":     "Alice",
+		"last_name":      "Smith",
+		"display_name":   "Alice Smith",
+	})
+	require.NoError(t, err)
+	require.Equal(t, AzureUser{
+		PrincipalName: "alice@acme.com",
+		AzureID:       "alice-id",
+		Email:         "alice@acme.com",
+		FirstName:     "Alice",
+		LastName:      "Smith",
+		DisplayName:   "Alice Smith",
+	}, *user.(*AzureUser))
+
+	group, err := azureSource.CreateGroupFromRaw(map[string]any{
+		"id":           "devs-id",
+		"display_name": "acme.devs|all",
+	})
+	require.NoError(t, err)
+	require.Equal(t, AzureGroup{
+		AzureID:     "devs-id",
+		DisplayName: "acme.devs|all",
+	}, *group.(*AzureGroup))
 }

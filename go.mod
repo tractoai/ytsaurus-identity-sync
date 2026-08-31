@@ -14,7 +14,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
 	github.com/testcontainers/testcontainers-go v0.31.0
-	github.com/testcontainers/testcontainers-go/modules/openldap v0.31.0
 	github.com/tractoai/testcontainers-ytsaurus v0.1.5
 	go.uber.org/zap v1.27.0
 	go.ytsaurus.tech/library/go/ptr v0.0.1

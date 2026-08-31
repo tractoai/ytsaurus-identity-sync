@@ -11,6 +11,7 @@ import (
 	ytcontainer "github.com/tractoai/testcontainers-ytsaurus"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/logging"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/sources"
 	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
@@ -47,7 +48,9 @@ func TestAppIntegration(t *testing.T) {
 
 	logger, err := logging.New(&cfg.Logging)
 	require.NoError(t, err)
-	app, err := NewApp(cfg, logger)
+	src, err := sources.New(cfg, logger)
+	require.NoError(t, err)
+	app, err := NewApp(cfg, logger, src)
 	require.NoError(t, err)
 
 	usersBefore, err := internalyt.GetAllUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)

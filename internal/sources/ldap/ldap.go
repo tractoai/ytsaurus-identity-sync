@@ -36,10 +36,6 @@ func NewLdap(cfg *config.LdapConfig, logger *zap.SugaredLogger) (*Ldap, error) {
 	}, nil
 }
 
-func (l *Ldap) Connection() *ldap.Conn {
-	return l.connection
-}
-
 func (l *Ldap) CreateUserFromRaw(raw map[string]any) (source.SourceUser, error) {
 	return NewLdapUser(raw)
 }

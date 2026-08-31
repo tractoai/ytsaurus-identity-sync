@@ -1,4 +1,4 @@
-package main
+package yt
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"go.uber.org/zap"
 	"k8s.io/utils/clock"
 
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -15,15 +17,16 @@ import (
 )
 
 const (
-	defaultYtsaurusTimeout      = 3 * time.Second
-	defaultYtsaurusSecretEnvVar = "YT_TOKEN"
-	defaultSourceAttributeName  = "source"
+	defaultYtsaurusTimeout     = 3 * time.Second
+	DefaultSecretEnvVar        = "YT_TOKEN"
+	defaultSourceAttributeName = "source"
+	appTimeFormat              = "2006-01-02T15:04:05Z0700"
 )
 
 type Ytsaurus struct {
 	client yt.Client
 
-	logger  appLoggerType
+	logger  *zap.SugaredLogger
 	timeout time.Duration
 	clock   clock.PassiveClock
 
@@ -37,7 +40,7 @@ type Ytsaurus struct {
 	sourceAttributeName string
 }
 
-func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveClock) (*Ytsaurus, error) {
+func NewYtsaurus(cfg *config.YtsaurusConfig, logger *zap.SugaredLogger, clock clock.PassiveClock) (*Ytsaurus, error) {
 	if cfg.LogLevel != "" {
 		err := os.Setenv("YT_LOG_LEVEL", cfg.LogLevel)
 		if err != nil {
@@ -46,7 +49,7 @@ func NewYtsaurus(cfg *YtsaurusConfig, logger appLoggerType, clock clock.PassiveC
 	}
 
 	if cfg.SecretEnvVar == "" {
-		cfg.SecretEnvVar = defaultYtsaurusSecretEnvVar
+		cfg.SecretEnvVar = DefaultSecretEnvVar
 	}
 	secret := os.Getenv(cfg.SecretEnvVar)
 	if secret == "" {

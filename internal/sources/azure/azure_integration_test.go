@@ -1,10 +1,9 @@
 //go:build integration
 
-package main
+package azure
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"strings"
 	"testing"
@@ -13,19 +12,18 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/stretchr/testify/require"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/logging"
 )
-
-//go:embed config.local.yaml
-var _localConfig embed.FS
 
 // TestPrintAzureUsersIntegration tests nothing, but can be used to debug Azure users retrieved from ms graph api.
 // In particular, it can be used to tune userFilter for production use.
 // It requires AZURE_CLIENT_SECRET env var and `config.local.yaml` file (which is .gitignored).
 func TestPrintAzureUsersIntegration(t *testing.T) {
-	cfg, err := loadConfig("config.local.yaml")
+	cfg, err := config.Load("../../../config.local.yaml")
 	require.NoError(t, err)
 
-	logger, err := configureLogger(&cfg.Logging)
+	logger, err := logging.New(&cfg.Logging)
 	require.NoError(t, err)
 	azure, err := NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)
@@ -85,10 +83,10 @@ func TestPrintAzureUsersIntegration(t *testing.T) {
 
 // TestPrintAzureUsersDiffIntegration can be used to tune user filter by reviewing a diff ao users for two filters.
 func TestPrintAzureUsersDiffIntegration(t *testing.T) {
-	cfg, err := loadConfig("config.local.yaml")
+	cfg, err := config.Load("../../../config.local.yaml")
 	require.NoError(t, err)
 
-	logger, err := configureLogger(&cfg.Logging)
+	logger, err := logging.New(&cfg.Logging)
 	require.NoError(t, err)
 	azure, err := NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)
@@ -161,10 +159,10 @@ func rawUsersToTestUsers(usersRaw []models.Userable) map[string]testUser {
 // In particular, it can be used to tune groupsFilter for production use.
 // It requires AZURE_CLIENT_SECRET env var and `config.local.yaml` file (which is .gitignored).
 func TestPrintAzureGroupsIntegrationRaw(t *testing.T) {
-	cfg, err := loadConfig("config.local.yaml")
+	cfg, err := config.Load("../../../config.local.yaml")
 	require.NoError(t, err)
 
-	logger, err := configureLogger(&cfg.Logging)
+	logger, err := logging.New(&cfg.Logging)
 	require.NoError(t, err)
 	azure, err := NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)
@@ -212,10 +210,10 @@ func TestPrintAzureGroupsIntegrationRaw(t *testing.T) {
 }
 
 func TestPrintAzureGroupsIntegration(t *testing.T) {
-	cfg, err := loadConfig("config.local.yaml")
+	cfg, err := config.Load("../../../config.local.yaml")
 	require.NoError(t, err)
 
-	logger, err := configureLogger(&cfg.Logging)
+	logger, err := logging.New(&cfg.Logging)
 	require.NoError(t, err)
 	azure, err := NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)
@@ -253,9 +251,9 @@ func TestPrintAzureGroupsIntegration(t *testing.T) {
 // TestDiffAzureGroups is a script that can check difference between
 // collected groups for two configurations.
 func TestDiffAzureGroupsNames(t *testing.T) {
-	cfgBefore, err := loadConfig("config.local.yaml")
+	cfgBefore, err := config.Load("../../../config.local.yaml")
 	require.NoError(t, err)
-	logger, err := configureLogger(&cfgBefore.Logging)
+	logger, err := logging.New(&cfgBefore.Logging)
 	require.NoError(t, err)
 
 	azureBefore, err := NewAzureReal(cfgBefore.Azure, logger)
@@ -267,7 +265,7 @@ func TestDiffAzureGroupsNames(t *testing.T) {
 		groupnamesBefore = append(groupnamesBefore, gr.SourceGroup.GetName())
 	}
 
-	cfgAfter, err := loadConfig("config.local.yaml")
+	cfgAfter, err := config.Load("../../../config.local.yaml")
 	cfgAfter.Azure.GroupsDisplayNameRegexPostFilter = `\|.+$`
 	require.NoError(t, err)
 
@@ -292,10 +290,10 @@ func TestDiffAzureGroupsNames(t *testing.T) {
 // by comparing results with and without the filter. This test verifies that the filter
 // produces different results, ensuring the feature works correctly.
 func TestUserGroupsFilterIntegration(t *testing.T) {
-	cfg, err := loadConfig("config.local.yaml")
+	cfg, err := config.Load("../../../config.local.yaml")
 	require.NoError(t, err)
 
-	logger, err := configureLogger(&cfg.Logging)
+	logger, err := logging.New(&cfg.Logging)
 	require.NoError(t, err)
 
 	// Test 1: Get users without UserGroupsFilter

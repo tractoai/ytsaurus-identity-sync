@@ -10,7 +10,7 @@ helm upgrade --install --wait \
 --version 0.2.0
 ```
 Examples for helm values can be found in the [examples](examples) directory.  
-All configuration options for app can be found in [main/config.go](main/config.go) file.
+All configuration options for app can be found in [internal/config/config.go](internal/config/config.go) file.
 
 
 ## Official release
@@ -23,4 +23,3 @@ Images will be build automatically on release tag creation.
 Application docker image and helm oci images are created on each commit to the main branch and uploaded to Github Packages.  
 [app registry](https://github.com/tractoai/ytsaurus-identity-sync/pkgs/container/ytsaurus-identity-sync)  
 [chart registry](https://github.com/tractoai/ytsaurus-identity-sync/pkgs/container/ytsaurus-identity-sync-chart)
-

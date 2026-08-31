@@ -1,14 +1,18 @@
-package main
+package app
 
 import (
 	"testing"
 	"time"
 
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	azuresource "github.com/tractoai/ytsaurus-identity-sync/internal/sources/azure"
+	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
+	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
 	testclock "k8s.io/utils/clock/testing"
 )
 
 var (
-	aliceAzure = AzureUser{
+	aliceAzure = azuresource.AzureUser{
 		PrincipalName: "alice@acme.com",
 		AzureID:       "fake-az-id-alice",
 		Email:         "alice@acme.com",
@@ -16,7 +20,7 @@ var (
 		LastName:      "Henderson",
 		DisplayName:   "Henderson, Alice (ACME)",
 	}
-	bobAzure = AzureUser{
+	bobAzure = azuresource.AzureUser{
 		PrincipalName: "Bob@acme.com",
 		AzureID:       "fake-az-id-bob",
 		Email:         "Bob@acme.com",
@@ -24,7 +28,7 @@ var (
 		LastName:      "Sanders",
 		DisplayName:   "Sanders, Bob (ACME)",
 	}
-	carolAzure = AzureUser{
+	carolAzure = azuresource.AzureUser{
 		PrincipalName: "carol@acme.com",
 		AzureID:       "fake-az-id-carol",
 		Email:         "carol@acme.com",
@@ -32,7 +36,7 @@ var (
 		LastName:      "Sanders",
 		DisplayName:   "Sanders, Carol (ACME)",
 	}
-	aliceAzureChangedLastName = AzureUser{
+	aliceAzureChangedLastName = azuresource.AzureUser{
 		PrincipalName: aliceAzure.PrincipalName,
 		AzureID:       aliceAzure.AzureID,
 		Email:         aliceAzure.Email,
@@ -40,7 +44,7 @@ var (
 		LastName:      "Smith",
 		DisplayName:   aliceAzure.DisplayName,
 	}
-	bobAzureChangedEmail = AzureUser{
+	bobAzureChangedEmail = azuresource.AzureUser{
 		PrincipalName: "bobby@example.com",
 		AzureID:       bobAzure.AzureID,
 		Email:         "bobby@example.com",
@@ -48,24 +52,24 @@ var (
 		LastName:      bobAzure.LastName,
 		DisplayName:   bobAzure.DisplayName,
 	}
-	devsAzureGroup = AzureGroup{
+	devsAzureGroup = azuresource.AzureGroup{
 		AzureID:     "fake-az-acme.devs",
 		DisplayName: "acme.devs|all",
 	}
-	hqAzureGroup = AzureGroup{
+	hqAzureGroup = azuresource.AzureGroup{
 		AzureID:     "fake-az-acme.hq",
 		DisplayName: "acme.hq",
 	}
-	devsAzureGroupChangedDisplayName = AzureGroup{
+	devsAzureGroupChangedDisplayName = azuresource.AzureGroup{
 		AzureID:     devsAzureGroup.AzureID,
 		DisplayName: "acme.developers|all",
 	}
-	hqAzureGroupChangedBackwardCompatible = AzureGroup{
+	hqAzureGroupChangedBackwardCompatible = azuresource.AzureGroup{
 		AzureID:     hqAzureGroup.AzureID,
 		DisplayName: "acme.hq|all",
 	}
 
-	aliceYtsaurus = YtsaurusUser{
+	aliceYtsaurus = internalyt.YtsaurusUser{
 		Username: "alice",
 		SourceRaw: map[string]any{
 			"id":             aliceAzure.AzureID,
@@ -76,7 +80,7 @@ var (
 			"display_name":   aliceAzure.DisplayName,
 		},
 	}
-	bobYtsaurus = YtsaurusUser{
+	bobYtsaurus = internalyt.YtsaurusUser{
 		Username: "bob",
 		SourceRaw: map[string]any{
 			"id":             bobAzure.AzureID,
@@ -87,7 +91,7 @@ var (
 			"display_name":   bobAzure.DisplayName,
 		},
 	}
-	carolYtsaurus = YtsaurusUser{
+	carolYtsaurus = internalyt.YtsaurusUser{
 		Username: "carol",
 		SourceRaw: map[string]any{
 			"id":             carolAzure.AzureID,
@@ -98,7 +102,7 @@ var (
 			"display_name":   carolAzure.DisplayName,
 		},
 	}
-	aliceYtsaurusChangedLastName = YtsaurusUser{
+	aliceYtsaurusChangedLastName = internalyt.YtsaurusUser{
 		Username: aliceYtsaurus.Username,
 		SourceRaw: map[string]any{
 			"id":             aliceYtsaurus.SourceRaw["id"],
@@ -109,7 +113,7 @@ var (
 			"display_name":   aliceYtsaurus.SourceRaw["display_name"],
 		},
 	}
-	bobYtsaurusChangedEmail = YtsaurusUser{
+	bobYtsaurusChangedEmail = internalyt.YtsaurusUser{
 		Username: "bobby:example.com",
 		SourceRaw: map[string]any{
 			"id":             bobYtsaurus.SourceRaw["id"],
@@ -120,7 +124,7 @@ var (
 			"display_name":   bobYtsaurus.SourceRaw["display_name"],
 		},
 	}
-	bobYtsaurusBanned = YtsaurusUser{
+	bobYtsaurusBanned = internalyt.YtsaurusUser{
 		Username: bobYtsaurus.Username,
 		SourceRaw: map[string]any{
 			"id":             bobYtsaurus.SourceRaw["id"],
@@ -132,7 +136,7 @@ var (
 		},
 		BannedSince: initialTestTime,
 	}
-	carolYtsaurusBanned = YtsaurusUser{
+	carolYtsaurusBanned = internalyt.YtsaurusUser{
 		Username: carolYtsaurus.Username,
 		SourceRaw: map[string]any{
 			"id":             carolYtsaurus.SourceRaw["id"],
@@ -144,35 +148,35 @@ var (
 		},
 		BannedSince: initialTestTime.Add(40 * time.Hour),
 	}
-	devsYtsaurusGroup = YtsaurusGroup{
+	devsYtsaurusGroup = internalyt.YtsaurusGroup{
 		Name: "acme.devs",
 		SourceRaw: map[string]any{
 			"id":           devsAzureGroup.AzureID,
 			"display_name": "acme.devs|all",
 		},
 	}
-	qaYtsaurusGroup = YtsaurusGroup{
+	qaYtsaurusGroup = internalyt.YtsaurusGroup{
 		Name: "acme.qa",
 		SourceRaw: map[string]any{
 			"id":           "fake-az-acme.qa",
 			"display_name": "acme.qa|all",
 		},
 	}
-	hqYtsaurusGroup = YtsaurusGroup{
+	hqYtsaurusGroup = internalyt.YtsaurusGroup{
 		Name: "acme.hq",
 		SourceRaw: map[string]any{
 			"id":           hqAzureGroup.AzureID,
 			"display_name": "acme.hq",
 		},
 	}
-	devsYtsaurusGroupChangedDisplayName = YtsaurusGroup{
+	devsYtsaurusGroupChangedDisplayName = internalyt.YtsaurusGroup{
 		Name: "acme.developers",
 		SourceRaw: map[string]any{
 			"id":           devsAzureGroup.AzureID,
 			"display_name": "acme.developers|all",
 		},
 	}
-	hqYtsaurusGroupChangedBackwardCompatible = YtsaurusGroup{
+	hqYtsaurusGroupChangedBackwardCompatible = internalyt.YtsaurusGroup{
 		Name: "acme.hq",
 		SourceRaw: map[string]any{
 			"id":           hqAzureGroup.AzureID,
@@ -185,34 +189,34 @@ var (
 	azureTestCases = []testCase{
 		{
 			name: "a-skip-b-create-c-remove",
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				aliceAzure,
 				bobAzure,
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				carolYtsaurus,
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 			},
 		},
 		{
 			name: "bob-is-banned",
-			appConfig: &AppConfig{
+			appConfig: &config.AppConfig{
 				UsernameReplacements:    defaultUsernameReplacements,
 				GroupnameReplacements:   defaultGroupnameReplacements,
 				BanBeforeRemoveDuration: 24 * time.Hour,
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 			},
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				aliceAzure,
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurusBanned,
 			},
@@ -223,40 +227,40 @@ var (
 			// 2 days have passed (more than setting allows) —> he should be removed.
 			// Carol was banned 8 hours ago and has been found in Azure -> she should be restored.
 			testTime: initialTestTime.Add(48 * time.Hour),
-			appConfig: &AppConfig{
+			appConfig: &config.AppConfig{
 				UsernameReplacements:    defaultUsernameReplacements,
 				GroupnameReplacements:   defaultGroupnameReplacements,
 				BanBeforeRemoveDuration: 24 * time.Hour,
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurusBanned,
 				carolYtsaurusBanned,
 			},
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				aliceAzure,
 				carolAzure,
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				carolYtsaurus,
 			},
 		},
 		{
 			name: "remove-limit-users-3",
-			appConfig: &AppConfig{
+			appConfig: &config.AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
 				RemoveLimit:           3,
 			},
-			sourceUsersSetUp: []SourceUser{},
-			ytUsersSetUp: []YtsaurusUser{
+			sourceUsersSetUp: []source.SourceUser{},
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 				carolYtsaurus,
 			},
 			// no one is deleted: limitation works
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 				carolYtsaurus,
@@ -264,57 +268,57 @@ var (
 		},
 		{
 			name: "remove-limit-groups-3",
-			appConfig: &AppConfig{
+			appConfig: &config.AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
 				RemoveLimit:           3,
 			},
-			sourceGroupsSetUp: []SourceGroupWithMembers{},
-			ytGroupsSetUp: []YtsaurusGroupWithMembers{
-				NewEmptyYtsaurusGroupWithMembers(devsYtsaurusGroup),
-				NewEmptyYtsaurusGroupWithMembers(qaYtsaurusGroup),
-				NewEmptyYtsaurusGroupWithMembers(hqYtsaurusGroup),
+			sourceGroupsSetUp: []source.SourceGroupWithMembers{},
+			ytGroupsSetUp: []internalyt.YtsaurusGroupWithMembers{
+				internalyt.NewEmptyYtsaurusGroupWithMembers(devsYtsaurusGroup),
+				internalyt.NewEmptyYtsaurusGroupWithMembers(qaYtsaurusGroup),
+				internalyt.NewEmptyYtsaurusGroupWithMembers(hqYtsaurusGroup),
 			},
 			// no group is deleted: limitation works
-			ytGroupsExpected: []YtsaurusGroupWithMembers{
-				NewEmptyYtsaurusGroupWithMembers(devsYtsaurusGroup),
-				NewEmptyYtsaurusGroupWithMembers(qaYtsaurusGroup),
-				NewEmptyYtsaurusGroupWithMembers(hqYtsaurusGroup),
+			ytGroupsExpected: []internalyt.YtsaurusGroupWithMembers{
+				internalyt.NewEmptyYtsaurusGroupWithMembers(devsYtsaurusGroup),
+				internalyt.NewEmptyYtsaurusGroupWithMembers(qaYtsaurusGroup),
+				internalyt.NewEmptyYtsaurusGroupWithMembers(hqYtsaurusGroup),
 			},
 		},
 		{
 			name: "a-changed-name-b-changed-email",
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				aliceAzureChangedLastName,
 				bobAzureChangedEmail,
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				aliceYtsaurusChangedLastName,
 				bobYtsaurusChangedEmail,
 			},
 		},
 		{
 			name: "skip-create-remove-group-no-members-change-correct-name-replace",
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				aliceAzure,
 				bobAzure,
 				carolAzure,
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 				carolYtsaurus,
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 				carolYtsaurus,
 			},
-			ytGroupsSetUp: []YtsaurusGroupWithMembers{
+			ytGroupsSetUp: []internalyt.YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: devsYtsaurusGroup,
 					Members:       NewStringSetFromItems(aliceYtsaurus.Username),
@@ -324,7 +328,7 @@ var (
 					Members:       NewStringSetFromItems(bobYtsaurus.Username),
 				},
 			},
-			sourceGroupsSetUp: []SourceGroupWithMembers{
+			sourceGroupsSetUp: []source.SourceGroupWithMembers{
 				{
 					SourceGroup: devsAzureGroup,
 					Members:     NewStringSetFromItems(aliceAzure.AzureID),
@@ -334,7 +338,7 @@ var (
 					Members:     NewStringSetFromItems(carolAzure.AzureID),
 				},
 			},
-			ytGroupsExpected: []YtsaurusGroupWithMembers{
+			ytGroupsExpected: []internalyt.YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: devsYtsaurusGroup,
 					Members:       NewStringSetFromItems(aliceYtsaurus.Username),
@@ -347,22 +351,22 @@ var (
 		},
 		{
 			name: "memberships-add-remove",
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				aliceAzure,
 				bobAzure,
 				carolAzure,
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 				carolYtsaurus,
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 				carolYtsaurus,
 			},
-			ytGroupsSetUp: []YtsaurusGroupWithMembers{
+			ytGroupsSetUp: []internalyt.YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: devsYtsaurusGroup,
 					Members: NewStringSetFromItems(
@@ -371,7 +375,7 @@ var (
 					),
 				},
 			},
-			sourceGroupsSetUp: []SourceGroupWithMembers{
+			sourceGroupsSetUp: []source.SourceGroupWithMembers{
 				{
 					SourceGroup: devsAzureGroup,
 					Members: NewStringSetFromItems(
@@ -380,7 +384,7 @@ var (
 					),
 				},
 			},
-			ytGroupsExpected: []YtsaurusGroupWithMembers{
+			ytGroupsExpected: []internalyt.YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: devsYtsaurusGroup,
 					Members: NewStringSetFromItems(
@@ -392,22 +396,22 @@ var (
 		},
 		{
 			name: "display-name-changes",
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				aliceAzure,
 				bobAzure,
 				carolAzure,
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 				carolYtsaurus,
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
 				carolYtsaurus,
 			},
-			ytGroupsSetUp: []YtsaurusGroupWithMembers{
+			ytGroupsSetUp: []internalyt.YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: devsYtsaurusGroup,
 					Members: NewStringSetFromItems(
@@ -423,7 +427,7 @@ var (
 					),
 				},
 			},
-			sourceGroupsSetUp: []SourceGroupWithMembers{
+			sourceGroupsSetUp: []source.SourceGroupWithMembers{
 				{
 					// This group should be updated.
 					SourceGroup: devsAzureGroupChangedDisplayName,
@@ -443,7 +447,7 @@ var (
 					),
 				},
 			},
-			ytGroupsExpected: []YtsaurusGroupWithMembers{
+			ytGroupsExpected: []internalyt.YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: devsYtsaurusGroupChangedDisplayName,
 					Members: NewStringSetFromItems(
@@ -496,9 +500,9 @@ func (suite *AppTestSuite) TestAzureSyncOnce() {
 					}
 					passiveClock := testclock.NewFakePassiveClock(tc.testTime)
 
-					azure := NewAzureFake()
-					azure.setUsers(tc.sourceUsersSetUp)
-					azure.setGroups(tc.sourceGroupsSetUp)
+					azure := azuresource.NewAzureFake()
+					azure.SetUsers(tc.sourceUsersSetUp)
+					azure.SetGroups(tc.sourceGroupsSetUp)
 
 					setupYtsaurusObjects(
 						t,

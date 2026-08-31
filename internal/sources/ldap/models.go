@@ -1,6 +1,9 @@
-package main
+package ldap
 
-import "go.ytsaurus.tech/yt/go/yson"
+import (
+	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
+	"go.ytsaurus.tech/yt/go/yson"
+)
 
 type LdapUser struct {
 	Username  string `yson:"username"`
@@ -23,7 +26,7 @@ func NewLdapUser(attributes map[string]any) (*LdapUser, error) {
 	return &user, nil
 }
 
-func (lu LdapUser) GetID() ObjectID {
+func (lu LdapUser) GetID() source.ObjectID {
 	return lu.UID
 }
 
@@ -63,7 +66,7 @@ func NewLdapGroup(attributes map[string]any) (*LdapGroup, error) {
 	return &group, nil
 }
 
-func (lg LdapGroup) GetID() ObjectID {
+func (lg LdapGroup) GetID() source.ObjectID {
 	return lg.Groupname
 }
 

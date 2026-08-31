@@ -1,7 +1,6 @@
-package main
+package config
 
 import (
-	"embed"
 	"testing"
 	"time"
 
@@ -10,13 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed azure_config.example.yaml ldap_config.example.yaml
-var _ embed.FS
-
 func TestAzureConfig(t *testing.T) {
-	configPath := "azure_config.example.yaml"
+	configPath := "../../azure_config.example.yaml"
 
-	cfg, err := loadConfig(configPath)
+	cfg, err := Load(configPath)
 	require.NoError(t, err)
 
 	require.Equal(t, 5*time.Minute, cfg.App.SyncInterval)
@@ -47,15 +43,12 @@ func TestAzureConfig(t *testing.T) {
 	require.Equal(t, "WARN", cfg.Logging.Level)
 	require.Equal(t, true, cfg.Logging.IsProduction)
 
-	logger, err := configureLogger(&cfg.Logging)
-	require.NoError(t, err)
-	logger.Debugw("test logging message", "key", "val")
 }
 
 func TestLdapConfig(t *testing.T) {
-	configPath := "ldap_config.example.yaml"
+	configPath := "../../ldap_config.example.yaml"
 
-	cfg, err := loadConfig(configPath)
+	cfg, err := Load(configPath)
 	require.NoError(t, err)
 
 	require.Equal(t, 5*time.Minute, cfg.App.SyncInterval)
@@ -95,7 +88,4 @@ func TestLdapConfig(t *testing.T) {
 	require.Equal(t, "WARN", cfg.Logging.Level)
 	require.Equal(t, true, cfg.Logging.IsProduction)
 
-	logger, err := configureLogger(&cfg.Logging)
-	require.NoError(t, err)
-	logger.Debugw("test logging message", "key", "val")
 }

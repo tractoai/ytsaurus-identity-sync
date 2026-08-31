@@ -1,6 +1,7 @@
-package main
+package azure
 
 import (
+	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
 	"go.ytsaurus.tech/yt/go/yson"
 )
 
@@ -9,11 +10,11 @@ type AzureUser struct {
 	// for the corresponding YTsaurus user's `name` attribute.
 	PrincipalName string `yson:"principal_name"`
 
-	AzureID     ObjectID `yson:"id"`
-	Email       string   `yson:"email"`
-	FirstName   string   `yson:"first_name"`
-	LastName    string   `yson:"last_name"`
-	DisplayName string   `yson:"display_name"`
+	AzureID     source.ObjectID `yson:"id"`
+	Email       string          `yson:"email"`
+	FirstName   string          `yson:"first_name"`
+	LastName    string          `yson:"last_name"`
+	DisplayName string          `yson:"display_name"`
 }
 
 func NewAzureUser(attributes map[string]any) (*AzureUser, error) {
@@ -30,7 +31,7 @@ func NewAzureUser(attributes map[string]any) (*AzureUser, error) {
 	return &azureUser, nil
 }
 
-func (au AzureUser) GetID() ObjectID {
+func (au AzureUser) GetID() source.ObjectID {
 	return au.AzureID
 }
 
@@ -53,8 +54,8 @@ func (au AzureUser) GetRaw() (map[string]any, error) {
 }
 
 type AzureGroup struct {
-	AzureID     ObjectID `yson:"id"`
-	DisplayName string   `yson:"display_name"`
+	AzureID     source.ObjectID `yson:"id"`
+	DisplayName string          `yson:"display_name"`
 }
 
 func NewAzureGroup(attributes map[string]any) (*AzureGroup, error) {
@@ -71,7 +72,7 @@ func NewAzureGroup(attributes map[string]any) (*AzureGroup, error) {
 	return &azureGroup, nil
 }
 
-func (ag AzureGroup) GetID() ObjectID {
+func (ag AzureGroup) GetID() source.ObjectID {
 	return ag.AzureID
 }
 

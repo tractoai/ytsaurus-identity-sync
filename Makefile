@@ -16,4 +16,4 @@ test-fast:
 
 .PHONY: format
 format:
-	go fmt
+	go fmt ./...

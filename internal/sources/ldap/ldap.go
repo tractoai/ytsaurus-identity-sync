@@ -1,17 +1,20 @@
-package main
+package ldap
 
 import (
 	"github.com/go-ldap/ldap/v3"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
+	"go.uber.org/zap"
 	"k8s.io/utils/env"
 )
 
 type Ldap struct {
 	connection *ldap.Conn
-	config     *LdapConfig
-	logger     appLoggerType
+	config     *config.LdapConfig
+	logger     *zap.SugaredLogger
 }
 
-func NewLdap(cfg *LdapConfig, logger appLoggerType) (*Ldap, error) {
+func NewLdap(cfg *config.LdapConfig, logger *zap.SugaredLogger) (*Ldap, error) {
 	conn, err := ldap.DialURL(cfg.Address)
 	if err != nil {
 		logger.Fatalf("Failed to connect: %s\n", err)
@@ -33,15 +36,19 @@ func NewLdap(cfg *LdapConfig, logger appLoggerType) (*Ldap, error) {
 	}, nil
 }
 
-func (l *Ldap) CreateUserFromRaw(raw map[string]any) (SourceUser, error) {
+func (l *Ldap) Connection() *ldap.Conn {
+	return l.connection
+}
+
+func (l *Ldap) CreateUserFromRaw(raw map[string]any) (source.SourceUser, error) {
 	return NewLdapUser(raw)
 }
 
-func (l *Ldap) CreateGroupFromRaw(raw map[string]any) (SourceGroup, error) {
+func (l *Ldap) CreateGroupFromRaw(raw map[string]any) (source.SourceGroup, error) {
 	return NewLdapGroup(raw)
 }
 
-func (l *Ldap) GetUsers() ([]SourceUser, error) {
+func (l *Ldap) GetUsers() ([]source.SourceUser, error) {
 	res, err := l.connection.Search(&ldap.SearchRequest{
 		BaseDN:     l.config.BaseDN,
 		Filter:     l.config.Users.Filter,
@@ -52,7 +59,7 @@ func (l *Ldap) GetUsers() ([]SourceUser, error) {
 		return nil, err
 	}
 
-	var users []SourceUser
+	var users []source.SourceUser
 	for _, entry := range res.Entries {
 		username := entry.GetAttributeValue(l.config.Users.UsernameAttributeType)
 		uid := entry.GetAttributeValue(l.config.Users.UIDAttributeType)
@@ -68,7 +75,7 @@ func (l *Ldap) GetUsers() ([]SourceUser, error) {
 	return users, nil
 }
 
-func (l *Ldap) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
+func (l *Ldap) GetGroupsWithMembers() ([]source.SourceGroupWithMembers, error) {
 	res, err := l.connection.Search(&ldap.SearchRequest{
 		BaseDN:     l.config.BaseDN,
 		Filter:     l.config.Groups.Filter,
@@ -79,11 +86,11 @@ func (l *Ldap) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 		return nil, err
 	}
 
-	var groups []SourceGroupWithMembers
+	var groups []source.SourceGroupWithMembers
 	for _, entry := range res.Entries {
 		groupname := entry.GetAttributeValue(l.config.Groups.GroupnameAttributeType)
 		members := entry.GetAttributeValues(l.config.Groups.MemberUIDAttributeType)
-		groups = append(groups, SourceGroupWithMembers{
+		groups = append(groups, source.SourceGroupWithMembers{
 			SourceGroup: LdapGroup{
 				Groupname: groupname,
 			},

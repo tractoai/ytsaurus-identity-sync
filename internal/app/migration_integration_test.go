@@ -1,18 +1,18 @@
 //go:build integration
 
-package main
+package app
 
 import (
 	"context"
-	"embed"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/logging"
+	azuresource "github.com/tractoai/ytsaurus-identity-sync/internal/sources/azure"
+	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
 	"k8s.io/utils/clock"
 )
-
-//go:embed config.local.yaml
-var prodConfig embed.FS
 
 // TestUsersMigration is not really a test, but a migration tool
 // It finds users that can't be created in YTsaurus because they already exist
@@ -20,27 +20,27 @@ var prodConfig embed.FS
 func TestUsersMigration(t *testing.T) {
 	dryRun := true
 	t.Skip("One-time launch assumed")
-	cfg, err := loadConfig("config.local.yaml")
+	cfg, err := config.Load("../../config.local.yaml")
 	require.NoError(t, err)
 
-	logger, err := configureLogger(&cfg.Logging)
+	logger, err := logging.New(&cfg.Logging)
 	require.NoError(t, err)
 	app, err := NewApp(cfg, logger)
 	require.NoError(t, err)
-	azure, err := NewAzureReal(cfg.Azure, logger)
+	azure, err := azuresource.NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)
-	yt, err := NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
+	yt, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	require.NoError(t, err)
 
 	sourceUsers, err := azure.GetUsers()
 	require.NoError(t, err)
 	t.Log("Got", len(sourceUsers), "Azure users")
 
-	ytUsers, err := doGetAllYtsaurusUsers(context.Background(), yt.client, cfg.Ytsaurus.SourceAttributeName)
+	ytUsers, err := internalyt.GetAllUsers(context.Background(), yt.Client(), cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)
 	t.Log("Got", len(ytUsers), "raw YTsaurus users")
 
-	manuallyCreatedUsers := make(map[string]YtsaurusUser)
+	manuallyCreatedUsers := make(map[string]internalyt.YtsaurusUser)
 	for _, user := range ytUsers {
 		if user.IsManuallyManaged() {
 			manuallyCreatedUsers[user.Username] = user
@@ -48,7 +48,7 @@ func TestUsersMigration(t *testing.T) {
 	}
 	t.Log("Got", len(manuallyCreatedUsers), "manually created YTsaurus users")
 
-	ytUsersToUpdate := make(map[string]YtsaurusUser)
+	ytUsersToUpdate := make(map[string]internalyt.YtsaurusUser)
 	for _, sourceUser := range sourceUsers {
 		convertedUser, err := app.buildYtsaurusUser(sourceUser)
 		require.NoError(t, err)
@@ -70,9 +70,9 @@ func TestUsersMigration(t *testing.T) {
 		}
 
 		t.Log("will set @azure=", attrValue, "for", username)
-		err = doSetAzureAttributeForYtsaurusUser(
+		err = internalyt.SetUserSourceAttribute(
 			context.Background(),
-			yt.client,
+			yt.Client(),
 			username,
 			"azure",
 			attrValue,
@@ -86,27 +86,27 @@ func TestUsersMigration(t *testing.T) {
 // and sets correct @azure attribute for them
 func TestGroupsMigration(t *testing.T) {
 	dryRun := true
-	cfg, err := loadConfig("config.local.yaml")
+	cfg, err := config.Load("../../config.local.yaml")
 	require.NoError(t, err)
 
-	logger, err := configureLogger(&cfg.Logging)
+	logger, err := logging.New(&cfg.Logging)
 	require.NoError(t, err)
 	app, err := NewApp(cfg, logger)
 	require.NoError(t, err)
-	azure, err := NewAzureReal(cfg.Azure, logger)
+	azure, err := azuresource.NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)
-	yt, err := NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
+	yt, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	require.NoError(t, err)
 
 	sourceGroups, err := azure.GetGroupsWithMembers()
 	require.NoError(t, err)
 	t.Log("Got", len(sourceGroups), "Azure groups")
 
-	ytGroups, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), yt.client, cfg.Ytsaurus.SourceAttributeName)
+	ytGroups, err := internalyt.GetAllGroupsWithMembers(context.Background(), yt.Client(), cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)
 	t.Log("Got", len(ytGroups), "raw YTsaurus groups")
 
-	manuallyCreatedGroups := make(map[string]YtsaurusGroupWithMembers)
+	manuallyCreatedGroups := make(map[string]internalyt.YtsaurusGroupWithMembers)
 	for _, group := range ytGroups {
 		if group.IsManuallyManaged() {
 			manuallyCreatedGroups[group.Name] = group
@@ -114,7 +114,7 @@ func TestGroupsMigration(t *testing.T) {
 	}
 	t.Log("Got", len(manuallyCreatedGroups), "manually create YTsaurus groups")
 
-	ytGroupsToUpdate := make(map[string]YtsaurusGroup)
+	ytGroupsToUpdate := make(map[string]internalyt.YtsaurusGroup)
 	for _, sourceGroup := range sourceGroups {
 		convertedGroup, err := app.buildYtsaurusGroup(sourceGroup.SourceGroup)
 		require.NoError(t, err)
@@ -135,9 +135,9 @@ func TestGroupsMigration(t *testing.T) {
 		}
 
 		t.Log("will set @azure=", attrValue, "for", groupname)
-		err = doSetAzureAttributeForYtsaurusGroup(
+		err = internalyt.SetGroupSourceAttribute(
 			context.Background(),
-			yt.client,
+			yt.Client(),
 			groupname,
 			"azure",
 			attrValue,

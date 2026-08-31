@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"os"
@@ -7,50 +7,47 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/sources/azure"
+	ldapsource "github.com/tractoai/ytsaurus-identity-sync/internal/sources/ldap"
+	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
+	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
+	"go.uber.org/zap"
 
 	"k8s.io/utils/clock"
 )
 
-type ObjectID = string
-
-type Source interface {
-	GetUsers() ([]SourceUser, error)
-	GetGroupsWithMembers() ([]SourceGroupWithMembers, error)
-	CreateUserFromRaw(raw map[string]any) (SourceUser, error)
-	CreateGroupFromRaw(raw map[string]any) (SourceGroup, error)
-}
-
 type App struct {
 	syncInterval      time.Duration
-	usernameReplaces  []ReplacementPair
-	groupnameReplaces []ReplacementPair
+	usernameReplaces  []config.ReplacementPair
+	groupnameReplaces []config.ReplacementPair
 	removeLimit       int
 	banDuration       time.Duration
 
-	ytsaurus *Ytsaurus
-	source   Source
+	ytsaurus *internalyt.Ytsaurus
+	source   source.Source
 
 	stopCh chan struct{}
 	sigCh  chan os.Signal
-	logger appLoggerType
+	logger *zap.SugaredLogger
 }
 
-func NewApp(cfg *Config, logger appLoggerType) (*App, error) {
+func NewApp(cfg *config.Config, logger *zap.SugaredLogger) (*App, error) {
 	if (cfg.Azure == nil) == (cfg.Ldap == nil) {
 		return nil, errors.New("one and only one source should be specified")
 	}
 
 	var err error
-	var source Source
+	var source source.Source
 	if cfg.Azure != nil {
-		source, err = NewAzureReal(cfg.Azure, logger)
+		source, err = azure.NewAzureReal(cfg.Azure, logger)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if cfg.Ldap != nil {
-		source, err = NewLdap(cfg.Ldap, logger)
+		source, err = ldapsource.NewLdap(cfg.Ldap, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -60,8 +57,8 @@ func NewApp(cfg *Config, logger appLoggerType) (*App, error) {
 }
 
 // NewAppCustomized used in tests.
-func NewAppCustomized(cfg *Config, logger appLoggerType, source Source, clock clock.PassiveClock) (*App, error) {
-	yt, err := NewYtsaurus(&cfg.Ytsaurus, logger, clock)
+func NewAppCustomized(cfg *config.Config, logger *zap.SugaredLogger, source source.Source, clock clock.PassiveClock) (*App, error) {
+	yt, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock)
 	if err != nil {
 		return nil, err
 	}

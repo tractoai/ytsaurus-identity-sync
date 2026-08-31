@@ -1,4 +1,4 @@
-package main
+package yt
 
 import (
 	"context"
@@ -8,17 +8,21 @@ import (
 
 	"github.com/stretchr/testify/require"
 	ytcontainer "github.com/tractoai/testcontainers-ytsaurus"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/logging"
 	"k8s.io/utils/clock"
 
 	"go.ytsaurus.tech/yt/go/ypath"
 )
+
+const ytDevToken = "password"
 
 func getYtsaurus(t *testing.T, ytLocal *ytcontainer.YTsaurusContainer) *Ytsaurus {
 	require.NoError(t, os.Setenv("YT_TOKEN", ytDevToken))
 	proxy, err := ytLocal.GetProxy(context.Background())
 	require.NoError(t, err)
 	yt, err := NewYtsaurus(
-		&YtsaurusConfig{
+		&config.YtsaurusConfig{
 			Proxy:               proxy,
 			Timeout:             10 * time.Minute,
 			LogLevel:            "DEBUG",
@@ -26,7 +30,7 @@ func getYtsaurus(t *testing.T, ytLocal *ytcontainer.YTsaurusContainer) *Ytsaurus
 			ApplyGroupChanges:   true,
 			ApplyMemberChanges:  true,
 			SourceAttributeName: "azure",
-		}, getDevelopmentLogger(),
+		}, logging.NewDevelopment(),
 		clock.RealClock{},
 	)
 	require.NoError(t, err)

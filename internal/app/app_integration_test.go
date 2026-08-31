@@ -1,6 +1,6 @@
 //go:build integration
 
-package main
+package app
 
 import (
 	"context"
@@ -9,6 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	ytcontainer "github.com/tractoai/testcontainers-ytsaurus"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/logging"
+	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
 )
@@ -22,8 +25,8 @@ const (
 // TestAppIntegration checks sync with real Azure API and local yt
 // It requires AZURE_CLIENT_SECRET to be set.
 func TestAppIntegration(t *testing.T) {
-	require.NoError(t, os.Setenv(defaultYtsaurusSecretEnvVar, ytDevToken))
-	cfg, err := loadConfig("config.local.yaml")
+	require.NoError(t, os.Setenv(internalyt.DefaultSecretEnvVar, ytDevToken))
+	cfg, err := config.Load("../../config.local.yaml")
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -42,24 +45,24 @@ func TestAppIntegration(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	logger, err := configureLogger(&cfg.Logging)
+	logger, err := logging.New(&cfg.Logging)
 	require.NoError(t, err)
 	app, err := NewApp(cfg, logger)
 	require.NoError(t, err)
 
-	usersBefore, err := doGetAllYtsaurusUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
+	usersBefore, err := internalyt.GetAllUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)
 	t.Log("usersBefore", len(usersBefore), usersBefore)
-	groupsBefore, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
+	groupsBefore, err := internalyt.GetAllGroupsWithMembers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	t.Log("groupsBefore", len(groupsBefore), groupsBefore)
 	require.NoError(t, err)
 
 	app.syncOnce()
 
-	usersAfter, err := doGetAllYtsaurusUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
+	usersAfter, err := internalyt.GetAllUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)
 	t.Log("usersAfter", len(usersAfter), usersAfter)
-	groupsAfter, err := doGetAllYtsaurusGroupsWithMembers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
+	groupsAfter, err := internalyt.GetAllGroupsWithMembers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	t.Log("groupsAfter", len(groupsAfter), groupsAfter)
 	require.NoError(t, err)
 

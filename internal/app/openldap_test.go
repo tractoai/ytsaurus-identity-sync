@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/openldap"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
 
 	"go.ytsaurus.tech/library/go/ptr"
 )
@@ -28,23 +29,23 @@ func (y *OpenLdapLocal) Start() error {
 	return y.container.Start(ctx)
 }
 
-func (y *OpenLdapLocal) GetConfig() (*LdapConfig, error) {
+func (y *OpenLdapLocal) GetConfig() (*config.LdapConfig, error) {
 	connectionString, err := y.container.ConnectionString(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	return &LdapConfig{
+	return &config.LdapConfig{
 		Address:            connectionString,
 		BaseDN:             "dc=example,dc=org",
 		BindDN:             "cn=admin,dc=example,dc=org",
 		BindPasswordEnvVar: "LDAP_PASSWORD",
-		Users: LdapUsersConfig{
+		Users: config.LdapUsersConfig{
 			Filter:                 "(&(objectClass=posixAccount)(ou=People))",
 			UsernameAttributeType:  "cn",
 			UIDAttributeType:       "uid",
 			FirstNameAttributeType: ptr.String("givenName"),
 		},
-		Groups: LdapGroupsConfig{
+		Groups: config.LdapGroupsConfig{
 			Filter:                 "(objectClass=posixGroup)",
 			GroupnameAttributeType: "cn",
 			MemberUIDAttributeType: "memberUid",

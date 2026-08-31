@@ -1,4 +1,4 @@
-package main
+package azure
 
 import (
 	"context"
@@ -15,6 +15,9 @@ import (
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	msgraphusers "github.com/microsoftgraph/msgraph-sdk-go/users"
 	"github.com/pkg/errors"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
+	"go.uber.org/zap"
 )
 
 const (
@@ -48,13 +51,13 @@ type AzureReal struct {
 	groupsDisplayNameRegexPostFilter *regexp.Regexp
 	userGroupsFilter                 string
 
-	logger  appLoggerType
+	logger  *zap.SugaredLogger
 	timeout time.Duration
 
 	debugAzureIDs []string
 }
 
-func NewAzureReal(cfg *AzureConfig, logger appLoggerType) (*AzureReal, error) {
+func NewAzureReal(cfg *config.AzureConfig, logger *zap.SugaredLogger) (*AzureReal, error) {
 	// https://github.com/microsoftgraph/msgraph-sdk-go#22-create-an-authenticationprovider-object
 	// https://learn.microsoft.com/en-us/graph/sdks/choose-authentication-providers
 	if cfg.ClientSecretEnvVar == "" {
@@ -113,15 +116,15 @@ func handleNil[T any](s *T) T {
 	return result
 }
 
-func (a *AzureReal) CreateUserFromRaw(raw map[string]any) (SourceUser, error) {
+func (a *AzureReal) CreateUserFromRaw(raw map[string]any) (source.SourceUser, error) {
 	return NewAzureUser(raw)
 }
 
-func (a *AzureReal) CreateGroupFromRaw(raw map[string]any) (SourceGroup, error) {
+func (a *AzureReal) CreateGroupFromRaw(raw map[string]any) (source.SourceGroup, error) {
 	return NewAzureGroup(raw)
 }
 
-func (a *AzureReal) GetUsers() ([]SourceUser, error) {
+func (a *AzureReal) GetUsers() ([]source.SourceUser, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	defer cancel()
 
@@ -131,7 +134,7 @@ func (a *AzureReal) GetUsers() ([]SourceUser, error) {
 	}
 
 	usersSkipped := 0
-	var users []SourceUser
+	var users []source.SourceUser
 	for _, user := range usersRaw {
 		principalName := handleNil(user.GetUserPrincipalName())
 		id := handleNil(user.GetId())
@@ -169,21 +172,21 @@ func (a *AzureReal) GetUsers() ([]SourceUser, error) {
 	return users, nil
 }
 
-func (a *AzureReal) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
+func (a *AzureReal) GetGroupsWithMembers() ([]source.SourceGroupWithMembers, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	defer cancel()
 
 	return a.getGroupsWithMembers(ctx, defaultGroupFieldsToSelect, a.groupsFilter)
 }
 
-func (a *AzureReal) getGroupsWithMembers(ctx context.Context, fieldsToSelect []string, filter string) ([]SourceGroupWithMembers, error) {
+func (a *AzureReal) getGroupsWithMembers(ctx context.Context, fieldsToSelect []string, filter string) ([]source.SourceGroupWithMembers, error) {
 	groupsRaw, err := a.getGroupsWithMembersRaw(ctx, fieldsToSelect, filter)
 	if err != nil {
 		return nil, err
 	}
 
 	groupsSkipped := 0
-	var groups []SourceGroupWithMembers
+	var groups []source.SourceGroupWithMembers
 	for _, group := range groupsRaw {
 		displayName := handleNil(group.GetDisplayName())
 		id := handleNil(group.GetId())
@@ -221,7 +224,7 @@ func (a *AzureReal) getGroupsWithMembers(ctx context.Context, fieldsToSelect []s
 		a.maybePrintDebugLogs(id, "azure_members_count", len(memberIDs.ToSlice()))
 
 		groups = append(groups,
-			SourceGroupWithMembers{
+			source.SourceGroupWithMembers{
 				SourceGroup: AzureGroup{
 					AzureID:     id,
 					DisplayName: displayName,
@@ -234,7 +237,7 @@ func (a *AzureReal) getGroupsWithMembers(ctx context.Context, fieldsToSelect []s
 	return groups, nil
 }
 
-func (a *AzureReal) maybePrintDebugLogs(id ObjectID, args ...any) {
+func (a *AzureReal) maybePrintDebugLogs(id source.ObjectID, args ...any) {
 	args = append([]any{"id", id}, args...)
 	for _, debugID := range a.debugAzureIDs {
 		if id == debugID {

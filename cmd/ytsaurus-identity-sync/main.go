@@ -5,6 +5,9 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/app"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/logging"
 	"go.uber.org/zap"
 )
 
@@ -26,17 +29,12 @@ func main() {
 
 func run(configFilePath string) error {
 	fmt.Println("Config file path:", configFilePath)
-	content, err := readConfig(configFilePath)
-	if err != nil {
-		return errors.Wrapf(err, "failed to load config %s", configFilePath)
-	}
-	fmt.Print("Config content:\n", string(content))
-	cfg, err := unmarshallConfig(content)
+	cfg, err := config.Load(configFilePath)
 	if err != nil {
 		return errors.Wrapf(err, "failed to load config %s", configFilePath)
 	}
 
-	logger, err := configureLogger(&cfg.Logging)
+	logger, err := logging.New(&cfg.Logging)
 	if err != nil {
 		return errors.Wrapf(err, "failed to configure logging %+v", cfg.Logging)
 	}
@@ -51,13 +49,13 @@ func run(configFilePath string) error {
 		"struct", cfg,
 	)
 
-	app, err := NewApp(cfg, logger)
+	application, err := app.NewApp(cfg, logger)
 	if err != nil {
 		return err
 	}
 
-	defer app.Stop()
-	app.Start()
+	defer application.Stop()
+	application.Start()
 
 	logger.Info("Application stopped")
 	return nil

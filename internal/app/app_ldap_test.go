@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"fmt"
@@ -8,65 +8,70 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/stretchr/testify/require"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/logging"
+	ldapsource "github.com/tractoai/ytsaurus-identity-sync/internal/sources/ldap"
+	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
+	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
 	testclock "k8s.io/utils/clock/testing"
 )
 
-func createLdapUser(name string) LdapUser {
-	return LdapUser{
+func createLdapUser(name string) ldapsource.LdapUser {
+	return ldapsource.LdapUser{
 		Username:  fmt.Sprintf("%s@acme.com", name),
 		UID:       getUserID(name),
 		FirstName: name,
 	}
 }
 
-func createUpdatedLdapUser(name string) LdapUser {
+func createUpdatedLdapUser(name string) ldapsource.LdapUser {
 	user := createLdapUser(name)
-	return LdapUser{
+	return ldapsource.LdapUser{
 		Username:  user.Username,
 		UID:       user.UID,
 		FirstName: user.FirstName + "-updated",
 	}
 }
 
-func createYtsaurusUser(name string) YtsaurusUser {
+func createYtsaurusUser(name string) internalyt.YtsaurusUser {
 	originalUsername := fmt.Sprintf("%s@acme.com", name)
 	ytUsername := originalUsername
 	for _, replacement := range defaultUsernameReplacements {
 		ytUsername = strings.Replace(ytUsername, replacement.From, replacement.To, -1)
 	}
 
-	return YtsaurusUser{Username: ytUsername, SourceRaw: map[string]any{
+	return internalyt.YtsaurusUser{Username: ytUsername, SourceRaw: map[string]any{
 		"username":   originalUsername,
 		"uid":        getUserID(name),
 		"first_name": name,
 	}}
 }
 
-func createUpdatedYtsaurusUser(name string) YtsaurusUser {
+func createUpdatedYtsaurusUser(name string) internalyt.YtsaurusUser {
 	user := createYtsaurusUser(name)
 	user.SourceRaw["first_name"] = name + "-updated"
 	return user
 }
 
-func bannedYtsaurusUser(ytUser YtsaurusUser, bannedSince time.Time) YtsaurusUser {
-	return YtsaurusUser{Username: ytUser.Username, SourceRaw: ytUser.SourceRaw, BannedSince: bannedSince}
+func bannedYtsaurusUser(ytUser internalyt.YtsaurusUser, bannedSince time.Time) internalyt.YtsaurusUser {
+	return internalyt.YtsaurusUser{Username: ytUser.Username, SourceRaw: ytUser.SourceRaw, BannedSince: bannedSince}
 }
 
-func createLdapGroup(name string) LdapGroup {
+func createLdapGroup(name string) ldapsource.LdapGroup {
 	name = "acme." + name
-	return LdapGroup{
+	return ldapsource.LdapGroup{
 		Groupname: fmt.Sprintf("%v|all", name),
 	}
 }
 
-func createYtsaurusGroup(name string) YtsaurusGroup {
+func createYtsaurusGroup(name string) internalyt.YtsaurusGroup {
 	name = "acme." + name
 	originalName := fmt.Sprintf("%v|all", name)
 	ytName := originalName
 	for _, replacement := range defaultGroupnameReplacements {
 		ytName = strings.Replace(ytName, replacement.From, replacement.To, -1)
 	}
-	return YtsaurusGroup{Name: name, SourceRaw: map[string]any{
+	return internalyt.YtsaurusGroup{Name: name, SourceRaw: map[string]any{
 		"groupname": originalName,
 	}}
 }
@@ -75,34 +80,34 @@ var (
 	ldapTestCases = []testCase{
 		{
 			name: "a-skip-b-create-c-remove",
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				createLdapUser(aliceName),
 				createLdapUser(bobName),
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(carolName),
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
 			},
 		},
 		{
 			name: "bob-is-banned",
-			appConfig: &AppConfig{
+			appConfig: &config.AppConfig{
 				UsernameReplacements:    defaultUsernameReplacements,
 				GroupnameReplacements:   defaultGroupnameReplacements,
 				BanBeforeRemoveDuration: 24 * time.Hour,
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
 			},
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				createLdapUser(aliceName),
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				bannedYtsaurusUser(createYtsaurusUser(bobName), initialTestTime),
 			},
@@ -113,40 +118,40 @@ var (
 			// 2 days have passed (more than setting allows) —> he should be removed.
 			// Carol was banned 8 hours ago and has been found in Azure -> she should be restored.
 			testTime: initialTestTime.Add(48 * time.Hour),
-			appConfig: &AppConfig{
+			appConfig: &config.AppConfig{
 				UsernameReplacements:    defaultUsernameReplacements,
 				GroupnameReplacements:   defaultGroupnameReplacements,
 				BanBeforeRemoveDuration: 24 * time.Hour,
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				bannedYtsaurusUser(createYtsaurusUser(bobName), initialTestTime),
 				bannedYtsaurusUser(createYtsaurusUser(carolName), initialTestTime.Add(40*time.Hour)),
 			},
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				createLdapUser(aliceName),
 				createLdapUser(carolName),
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(carolName),
 			},
 		},
 		{
 			name: "remove-limit-users-3",
-			appConfig: &AppConfig{
+			appConfig: &config.AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
 				RemoveLimit:           3,
 			},
-			sourceUsersSetUp: []SourceUser{},
-			ytUsersSetUp: []YtsaurusUser{
+			sourceUsersSetUp: []source.SourceUser{},
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
 				createYtsaurusUser(carolName),
 			},
 			// No one is deleted: limitation works.
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
 				createYtsaurusUser(carolName),
@@ -154,57 +159,57 @@ var (
 		},
 		{
 			name: "remove-limit-groups-3",
-			appConfig: &AppConfig{
+			appConfig: &config.AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
 				RemoveLimit:           3,
 			},
-			sourceGroupsSetUp: []SourceGroupWithMembers{},
-			ytGroupsSetUp: []YtsaurusGroupWithMembers{
-				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("devs")),
-				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("qa")),
-				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("hq")),
+			sourceGroupsSetUp: []source.SourceGroupWithMembers{},
+			ytGroupsSetUp: []internalyt.YtsaurusGroupWithMembers{
+				internalyt.NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("devs")),
+				internalyt.NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("qa")),
+				internalyt.NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("hq")),
 			},
 			// No group is deleted: limitation works.
-			ytGroupsExpected: []YtsaurusGroupWithMembers{
-				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("devs")),
-				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("qa")),
-				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("hq")),
+			ytGroupsExpected: []internalyt.YtsaurusGroupWithMembers{
+				internalyt.NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("devs")),
+				internalyt.NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("qa")),
+				internalyt.NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("hq")),
 			},
 		},
 		{
 			name: "a-changed-name-b-changed-email",
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				createUpdatedLdapUser(aliceName),
 				createUpdatedLdapUser(bobName),
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				createUpdatedYtsaurusUser(aliceName),
 				createUpdatedYtsaurusUser(bobName),
 			},
 		},
 		{
 			name: "skip-create-remove-group-no-members-change-correct-name-replace",
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				createLdapUser(aliceName),
 				createLdapUser(bobName),
 				createLdapUser(carolName),
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
 				createYtsaurusUser(carolName),
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
 				createYtsaurusUser(carolName),
 			},
-			ytGroupsSetUp: []YtsaurusGroupWithMembers{
+			ytGroupsSetUp: []internalyt.YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: createYtsaurusGroup("devs"),
 					Members:       NewStringSetFromItems(aliceName),
@@ -214,7 +219,7 @@ var (
 					Members:       NewStringSetFromItems(bobName),
 				},
 			},
-			sourceGroupsSetUp: []SourceGroupWithMembers{
+			sourceGroupsSetUp: []source.SourceGroupWithMembers{
 				{
 					SourceGroup: createLdapGroup("devs"),
 					Members:     NewStringSetFromItems(getUserID(aliceName)),
@@ -224,7 +229,7 @@ var (
 					Members:     NewStringSetFromItems(getUserID(carolName)),
 				},
 			},
-			ytGroupsExpected: []YtsaurusGroupWithMembers{
+			ytGroupsExpected: []internalyt.YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: createYtsaurusGroup("devs"),
 					Members:       NewStringSetFromItems(aliceName),
@@ -237,22 +242,22 @@ var (
 		},
 		{
 			name: "memberships-add-remove",
-			sourceUsersSetUp: []SourceUser{
+			sourceUsersSetUp: []source.SourceUser{
 				createLdapUser(aliceName),
 				createLdapUser(bobName),
 				createLdapUser(carolName),
 			},
-			ytUsersSetUp: []YtsaurusUser{
+			ytUsersSetUp: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
 				createYtsaurusUser(carolName),
 			},
-			ytUsersExpected: []YtsaurusUser{
+			ytUsersExpected: []internalyt.YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
 				createYtsaurusUser(carolName),
 			},
-			ytGroupsSetUp: []YtsaurusGroupWithMembers{
+			ytGroupsSetUp: []internalyt.YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: createYtsaurusGroup("devs"),
 					Members: NewStringSetFromItems(
@@ -261,7 +266,7 @@ var (
 					),
 				},
 			},
-			sourceGroupsSetUp: []SourceGroupWithMembers{
+			sourceGroupsSetUp: []source.SourceGroupWithMembers{
 				{
 					SourceGroup: createLdapGroup("devs"),
 					Members: NewStringSetFromItems(
@@ -270,7 +275,7 @@ var (
 					),
 				},
 			},
-			ytGroupsExpected: []YtsaurusGroupWithMembers{
+			ytGroupsExpected: []internalyt.YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: createYtsaurusGroup("devs"),
 					Members: NewStringSetFromItems(
@@ -305,10 +310,10 @@ func (suite *AppTestSuite) TestLdapSyncOnce() {
 
 					ldapConfig, err := ldapLocal.GetConfig()
 					require.NoError(t, err)
-					ldapSource, err := NewLdap(ldapConfig, getDevelopmentLogger())
+					ldapSource, err := ldapsource.NewLdap(ldapConfig, logging.NewDevelopment())
 					require.NoError(t, err)
 
-					setupLdapObjects(t, ldapSource.connection, tc.sourceUsersSetUp, tc.sourceGroupsSetUp)
+					setupLdapObjects(t, ldapSource.Connection(), tc.sourceUsersSetUp, tc.sourceGroupsSetUp)
 
 					setupYtsaurusObjects(
 						t,
@@ -326,7 +331,7 @@ func (suite *AppTestSuite) TestLdapSyncOnce() {
 	}
 }
 
-func setupLdapObjects(t *testing.T, conn *ldap.Conn, users []SourceUser, groups []SourceGroupWithMembers) {
+func setupLdapObjects(t *testing.T, conn *ldap.Conn, users []source.SourceUser, groups []source.SourceGroupWithMembers) {
 	require.NoError(t, conn.Add(&ldap.AddRequest{
 		DN: "ou=People,dc=example,dc=org",
 		Attributes: []ldap.Attribute{
@@ -356,7 +361,7 @@ func setupLdapObjects(t *testing.T, conn *ldap.Conn, users []SourceUser, groups 
 	}))
 
 	for _, user := range users {
-		ldapUser := user.(LdapUser)
+		ldapUser := user.(ldapsource.LdapUser)
 		addRequest := ldap.AddRequest{
 			DN: fmt.Sprintf("uid=%s,ou=People,dc=example,dc=org", user.GetID()),
 			Attributes: []ldap.Attribute{
@@ -402,7 +407,7 @@ func setupLdapObjects(t *testing.T, conn *ldap.Conn, users []SourceUser, groups 
 	}
 
 	for groupID, group := range groups {
-		ldapGroup := group.SourceGroup.(LdapGroup)
+		ldapGroup := group.SourceGroup.(ldapsource.LdapGroup)
 
 		members := make([]string, 0)
 		for member := range group.Members.Iter() {

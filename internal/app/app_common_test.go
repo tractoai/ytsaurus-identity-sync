@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"log"
 	"os"
 	"slices"
@@ -26,11 +25,9 @@ import (
 )
 
 const (
-	aliceName              = "alice"
-	bobName                = "bob"
-	carolName              = "carol"
 	ytDevToken             = "password"
 	reuseYtContainerEnvVar = "REUSE_YT_CONTAINER"
+	testSourceAttribute    = "test_source"
 )
 
 type testCase struct {
@@ -45,15 +42,6 @@ type testCase struct {
 	sourceGroupsSetUp []source.SourceGroupWithMembers
 	ytGroupsSetUp     []internalyt.YtsaurusGroupWithMembers
 	ytGroupsExpected  []internalyt.YtsaurusGroupWithMembers
-}
-
-func getUserID(name string) string {
-	h := fnv.New32a()
-	_, err := h.Write([]byte(name))
-	if err != nil {
-		log.Fatalf("failed to generate user id: %v", err)
-	}
-	return fmt.Sprintf("%v", h.Sum32())
 }
 
 var (
@@ -132,11 +120,11 @@ func (suite *AppTestSuite) restartYtsaurusIfNeeded() {
 }
 
 func (suite *AppTestSuite) getAllYtsaurusObjects() (users []internalyt.YtsaurusUser, groups []internalyt.YtsaurusGroupWithMembers, err error) {
-	allUsers, err := internalyt.GetAllUsers(context.Background(), suite.ytsaurusClient, "azure")
+	allUsers, err := internalyt.GetAllUsers(context.Background(), suite.ytsaurusClient, testSourceAttribute)
 	if err != nil {
 		return nil, nil, err
 	}
-	allGroups, err := internalyt.GetAllGroupsWithMembers(context.Background(), suite.ytsaurusClient, "azure")
+	allGroups, err := internalyt.GetAllGroupsWithMembers(context.Background(), suite.ytsaurusClient, testSourceAttribute)
 	return allUsers, allGroups, err
 }
 
@@ -245,15 +233,14 @@ func (suite *AppTestSuite) syncOnce(t *testing.T, source source.Source, clock cl
 	require.NoError(t, err)
 	app, err := NewAppCustomized(
 		&config.Config{
-			App:   *appConfig,
-			Azure: &config.AzureConfig{},
+			App: *appConfig,
 			Ytsaurus: config.YtsaurusConfig{
 				Proxy:               proxy,
 				ApplyUserChanges:    true,
 				ApplyGroupChanges:   true,
 				ApplyMemberChanges:  true,
 				LogLevel:            "DEBUG",
-				SourceAttributeName: "azure",
+				SourceAttributeName: testSourceAttribute,
 			},
 		}, logging.NewDevelopment(),
 		source,
@@ -347,7 +334,7 @@ func setupYtsaurusObjects(t *testing.T, client yt.Client, users []internalyt.Yts
 	for _, user := range users {
 		t.Logf("creating user: %v", user)
 
-		userAttributes := internalyt.BuildUserAttributes(user, "azure")
+		userAttributes := internalyt.BuildUserAttributes(user, testSourceAttribute)
 		err := internalyt.CreateUser(
 			context.Background(),
 			client,
@@ -360,7 +347,7 @@ func setupYtsaurusObjects(t *testing.T, client yt.Client, users []internalyt.Yts
 	for _, group := range groups {
 		t.Log("creating group:", group)
 
-		groupAttributes := internalyt.BuildGroupAttributes(group.YtsaurusGroup, "azure")
+		groupAttributes := internalyt.BuildGroupAttributes(group.YtsaurusGroup, testSourceAttribute)
 		err := internalyt.CreateGroup(
 			context.Background(),
 			client,

@@ -6,10 +6,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
-	"github.com/tractoai/ytsaurus-identity-sync/internal/sources/azure"
-	ldapsource "github.com/tractoai/ytsaurus-identity-sync/internal/sources/ldap"
 	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
 	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
 	"go.uber.org/zap"
@@ -32,27 +29,7 @@ type App struct {
 	logger *zap.SugaredLogger
 }
 
-func NewApp(cfg *config.Config, logger *zap.SugaredLogger) (*App, error) {
-	if (cfg.Azure == nil) == (cfg.Ldap == nil) {
-		return nil, errors.New("one and only one source should be specified")
-	}
-
-	var err error
-	var source source.Source
-	if cfg.Azure != nil {
-		source, err = azure.NewAzureReal(cfg.Azure, logger)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if cfg.Ldap != nil {
-		source, err = ldapsource.NewLdap(cfg.Ldap, logger)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+func NewApp(cfg *config.Config, logger *zap.SugaredLogger, source source.Source) (*App, error) {
 	return NewAppCustomized(cfg, logger, source, clock.RealClock{})
 }
 

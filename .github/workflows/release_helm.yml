@@ -59,7 +59,7 @@ jobs:
           name: ytsaurus-identity-sync-chart
           repository: tractoai
           tag: ${{ steps.tag.outputs.version }}
-          path: ytsaurus-identity-sync-chart
+          path: chart
           registry: ${{ env.REGISTRY }}
           registry_username: ${{ github.actor }}
           registry_password: ${{ secrets.GITHUB_TOKEN }}

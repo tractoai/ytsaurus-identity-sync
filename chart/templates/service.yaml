@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ytsaurus-identity-sync.fullname" . }}
+  labels:
+    {{- include "ytsaurus-identity-sync.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "ytsaurus-identity-sync.selectorLabels" . | nindent 4 }}

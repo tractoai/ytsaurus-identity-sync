@@ -17,6 +17,23 @@ import (
 // ErrSyncInProgress indicates that another sync iteration owns the sync lock.
 var ErrSyncInProgress = errors.New("sync is already in progress")
 
+// ErrSyncPartial indicates that all synchronization stages ran, but one or more mutations failed.
+var ErrSyncPartial = errors.New("sync partially completed")
+
+type partialSyncError struct {
+	causes []error
+}
+
+func (e *partialSyncError) Error() string {
+	return ErrSyncPartial.Error() + ": " + errors.Join(e.causes...).Error()
+}
+
+func (e *partialSyncError) Unwrap() []error {
+	errs := make([]error, 0, len(e.causes)+1)
+	errs = append(errs, ErrSyncPartial)
+	return append(errs, e.causes...)
+}
+
 // Ytsaurus contains the YTsaurus operations required by App.
 type Ytsaurus interface {
 	GetUsers() ([]internalyt.YtsaurusUser, error)
@@ -43,6 +60,7 @@ type App struct {
 
 	ytsaurus Ytsaurus
 	source   source.Source
+	metrics  Metrics
 
 	stopCh chan struct{}
 	sigCh  chan os.Signal
@@ -52,7 +70,7 @@ type App struct {
 	syncMutex sync.Mutex
 }
 
-func NewApp(cfg *config.Config, logger *zap.SugaredLogger, source source.Source, ytsaurus Ytsaurus) *App {
+func NewApp(cfg *config.Config, logger *zap.SugaredLogger, source source.Source, ytsaurus Ytsaurus, metrics Metrics) *App {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGUSR1)
 
@@ -65,6 +83,7 @@ func NewApp(cfg *config.Config, logger *zap.SugaredLogger, source source.Source,
 
 		ytsaurus: ytsaurus,
 		source:   source,
+		metrics:  metrics,
 
 		stopCh: make(chan struct{}),
 		sigCh:  sigCh,
@@ -95,14 +114,10 @@ func (a *App) Start() {
 			return
 		case <-tickerCh:
 			a.logger.Debug("Received next tick")
-			if err := a.syncOnce(); err != nil {
-				a.logger.Errorw("Sync failed", zap.Error(err))
-			}
+			a.logSyncResult(a.syncOnce())
 		case <-a.sigCh:
 			a.logger.Info("Received SIGUSR1")
-			if err := a.syncOnce(); err != nil {
-				a.logger.Errorw("Sync failed", zap.Error(err))
-			}
+			a.logSyncResult(a.syncOnce())
 		}
 	}
 }
@@ -122,10 +137,32 @@ func (a *App) SyncAsync() error {
 
 	go func() {
 		defer a.syncMutex.Unlock()
-		if err := a.syncOnceLocked(); err != nil {
-			a.logger.Errorw("Sync failed", zap.Error(err))
-		}
+		a.logSyncResult(a.syncOnceLocked())
 	}()
 
 	return nil
+}
+
+func (a *App) logSyncResult(err error) {
+	if err == nil {
+		return
+	}
+	if errors.Is(err, ErrSyncPartial) {
+		a.logger.Warn(err)
+		return
+	}
+	a.logger.Errorw("Sync failed", zap.Error(err))
+}
+
+func newPartialSyncError(errs ...error) error {
+	causes := make([]error, 0, len(errs))
+	for _, err := range errs {
+		var partialErr *partialSyncError
+		if errors.As(err, &partialErr) {
+			causes = append(causes, partialErr.causes...)
+			continue
+		}
+		causes = append(causes, err)
+	}
+	return &partialSyncError{causes: causes}
 }

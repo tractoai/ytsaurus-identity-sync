@@ -23,7 +23,31 @@ serviceAccount:
 
 service:
   type: ClusterIP
-  port: 8080
+  port: 9090
+
+monitoring:
+  serviceMonitor:
+    enabled: false
+    additionalLabels: {}
+  prometheusRules:
+    enabled: false
+    additionalLabels: {}
+    rules:
+      - alert: YtsaurusIdentitySyncLastCompletedSyncTooOld
+        expr: time() - ytsaurus_identity_sync_last_completed_timestamp_seconds > 3600
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: YTsaurus identity synchronization has not completed for more than an hour
+          description: No YTsaurus identity synchronization has completed successfully or partially during the last hour.
+      - alert: YtsaurusIdentitySyncMutationErrors
+        expr: ytsaurus_identity_sync_yt_mutation_errors{object_type=~"user|group|membership"} > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: YTsaurus identity synchronization mutations failed during the last iteration
+          description: '{{ printf "%.0f" $value }} objects of type {{ $labels.object_type }} could not be synchronized during the last iteration (operation={{ $labels.operation }}).'
 
 podAnnotations: {}
 podLabels: {}

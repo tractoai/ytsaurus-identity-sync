@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-const DefaultServerListen = ":8080"
+const DefaultServerListen = ":9090"
 
 type Config struct {
 	App      AppConfig      `yaml:"app"`

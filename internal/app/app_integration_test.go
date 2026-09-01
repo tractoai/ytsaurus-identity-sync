@@ -53,7 +53,7 @@ func TestAppIntegration(t *testing.T) {
 	require.NoError(t, err)
 	ytsaurus, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	require.NoError(t, err)
-	app := NewApp(cfg, logger, src, ytsaurus)
+	app := NewApp(cfg, logger, src, ytsaurus, nil)
 
 	usersBefore, err := internalyt.GetAllUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)

@@ -1,0 +1,18 @@
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ytsaurus-identity-sync.fullname" . }}
+  labels:
+    {{- include "ytsaurus-identity-sync.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ytsaurus-identity-sync.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+{{- end }}

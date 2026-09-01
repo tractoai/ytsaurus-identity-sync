@@ -4,6 +4,8 @@ import (
 	"time"
 )
 
+const DefaultServerListen = ":8080"
+
 type Config struct {
 	App      AppConfig      `yaml:"app"`
 	Ytsaurus YtsaurusConfig `yaml:"ytsaurus"`
@@ -15,6 +17,8 @@ type Config struct {
 }
 
 type AppConfig struct {
+	Server ServerConfig `yaml:"server"`
+
 	// SyncInterval is the interval between full synchronizations.
 	// If it is not speciied or value is zero than auto-sync disabled (sync can be invoked only manually).
 	SyncInterval time.Duration `yaml:"sync_interval"`
@@ -33,6 +37,10 @@ type AppConfig struct {
 	// BanBeforeRemoveDuration is a duration of a graceful ban before finally removing the user from YTsaurus.
 	// If it is not specified, user will be removed straight after user was found to be missing from source (Azure or Ldap).
 	BanBeforeRemoveDuration time.Duration `yaml:"ban_before_remove_duration"`
+}
+
+type ServerConfig struct {
+	Listen string `yaml:"listen"`
 }
 
 type ReplacementPair struct {

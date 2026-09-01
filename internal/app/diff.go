@@ -15,19 +15,26 @@ import (
 	"go.uber.org/zap"
 )
 
-func (a *App) syncOnce() {
+func (a *App) syncOnce() error {
+	if !a.syncMutex.TryLock() {
+		return ErrSyncInProgress
+	}
+	defer a.syncMutex.Unlock()
+	return a.syncOnceLocked()
+}
+
+func (a *App) syncOnceLocked() error {
 	a.logger.Info("Start syncing")
 	defer a.logger.Info("Finish syncing")
 
 	actualYtsaurusUserMap, err := a.syncUsers()
 	if err != nil {
-		a.logger.Error("user sync failed", zap.Error(err))
-		return
+		return errors.Wrap(err, "user sync failed")
 	}
-	err = a.syncGroups(actualYtsaurusUserMap)
-	if err != nil {
-		a.logger.Error("group sync failed", zap.Error(err))
+	if err := a.syncGroups(actualYtsaurusUserMap); err != nil {
+		return errors.Wrap(err, "group sync failed")
 	}
+	return nil
 }
 
 func (a *App) isRemoveLimitReached(objectsCount int) bool {

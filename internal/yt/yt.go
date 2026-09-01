@@ -55,6 +55,9 @@ func NewYtsaurus(cfg *config.YtsaurusConfig, logger *zap.SugaredLogger, clock cl
 	if secret == "" {
 		return nil, errors.Errorf("YTsaurus secret in %s env var shouldn't be empty", cfg.SecretEnvVar)
 	}
+	if cfg.Timeout == 0 {
+		cfg.Timeout = defaultYtsaurusTimeout
+	}
 	client, err := ythttp.NewClient(&yt.Config{
 		Proxy: cfg.Proxy,
 		Credentials: &yt.TokenCredentials{
@@ -65,8 +68,10 @@ func NewYtsaurus(cfg *config.YtsaurusConfig, logger *zap.SugaredLogger, clock cl
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Timeout == 0 {
-		cfg.Timeout = defaultYtsaurusTimeout
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
+	defer cancel()
+	if _, err := client.WhoAmI(ctx, nil); err != nil {
+		return nil, errors.Wrap(err, "failed to authenticate in YTsaurus")
 	}
 	if cfg.SourceAttributeName == "" {
 		cfg.SourceAttributeName = defaultSourceAttributeName

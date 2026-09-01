@@ -14,6 +14,8 @@ azure:
 
 syncConfig: |-
   app:
+    server:
+      listen: ":8080"
     sync_interval: 10m
     username_replacements:
       - from: "@acme.com"
@@ -41,4 +43,3 @@ syncConfig: |-
   logging:
     is_production: true
     level: DEBUG
-

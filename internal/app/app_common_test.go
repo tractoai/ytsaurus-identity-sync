@@ -231,24 +231,24 @@ func (suite *AppTestSuite) syncOnce(t *testing.T, source source.Source, clock cl
 
 	proxy, err := suite.ytsaurusLocal.GetProxy(suite.ctx)
 	require.NoError(t, err)
-	app, err := NewAppCustomized(
-		&config.Config{
-			App: *appConfig,
-			Ytsaurus: config.YtsaurusConfig{
-				Proxy:               proxy,
-				ApplyUserChanges:    true,
-				ApplyGroupChanges:   true,
-				ApplyMemberChanges:  true,
-				LogLevel:            "DEBUG",
-				SourceAttributeName: testSourceAttribute,
-			},
-		}, logging.NewDevelopment(),
-		source,
-		clock,
-	)
+	logger := logging.NewDevelopment()
+	ytsaurus, err := internalyt.NewYtsaurus(&config.YtsaurusConfig{
+		Proxy:               proxy,
+		ApplyUserChanges:    true,
+		ApplyGroupChanges:   true,
+		ApplyMemberChanges:  true,
+		LogLevel:            "DEBUG",
+		SourceAttributeName: testSourceAttribute,
+	}, logger, clock)
 	require.NoError(t, err)
+	app := NewApp(
+		&config.Config{App: *appConfig},
+		logger,
+		source,
+		ytsaurus,
+	)
 
-	app.syncOnce()
+	require.NoError(t, app.syncOnce())
 }
 
 func (suite *AppTestSuite) check(t *testing.T, expectedUsers []internalyt.YtsaurusUser, expectedGroups []internalyt.YtsaurusGroupWithMembers) {

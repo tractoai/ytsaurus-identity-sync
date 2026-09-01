@@ -15,6 +15,7 @@ import (
 	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
+	"k8s.io/utils/clock"
 )
 
 const (
@@ -50,8 +51,9 @@ func TestAppIntegration(t *testing.T) {
 	require.NoError(t, err)
 	src, err := sources.New(cfg, logger)
 	require.NoError(t, err)
-	app, err := NewApp(cfg, logger, src)
+	ytsaurus, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	require.NoError(t, err)
+	app := NewApp(cfg, logger, src, ytsaurus)
 
 	usersBefore, err := internalyt.GetAllUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)
@@ -60,7 +62,7 @@ func TestAppIntegration(t *testing.T) {
 	t.Log("groupsBefore", len(groupsBefore), groupsBefore)
 	require.NoError(t, err)
 
-	app.syncOnce()
+	require.NoError(t, app.syncOnce())
 
 	usersAfter, err := internalyt.GetAllUsers(context.Background(), ytClient, cfg.Ytsaurus.SourceAttributeName)
 	require.NoError(t, err)

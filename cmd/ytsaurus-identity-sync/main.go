@@ -8,8 +8,11 @@ import (
 	"github.com/tractoai/ytsaurus-identity-sync/internal/app"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/logging"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/server"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/sources"
+	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
 	"go.uber.org/zap"
+	"k8s.io/utils/clock"
 )
 
 var options struct {
@@ -55,12 +58,19 @@ func run(configFilePath string) error {
 		return err
 	}
 
-	application, err := app.NewApp(cfg, logger, src)
+	ytsaurus, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	if err != nil {
 		return err
 	}
+	application := app.NewApp(cfg, logger, src, ytsaurus)
 
 	defer application.Stop()
+	healthServer := server.New(logger, &cfg.App.Server, application)
+	if err := healthServer.Start(); err != nil {
+		return err
+	}
+	defer healthServer.Stop()
+
 	application.Start()
 
 	logger.Info("Application stopped")

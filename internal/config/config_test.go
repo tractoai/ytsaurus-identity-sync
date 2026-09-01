@@ -16,6 +16,7 @@ func TestAzureConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, 5*time.Minute, cfg.App.SyncInterval)
+	require.Equal(t, DefaultServerListen, cfg.App.Server.Listen)
 	require.Equal(t, []ReplacementPair{
 		{From: "@acme.com", To: ""},
 		{From: "@", To: ":"},
@@ -52,6 +53,7 @@ func TestLdapConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, 5*time.Minute, cfg.App.SyncInterval)
+	require.Equal(t, DefaultServerListen, cfg.App.Server.Listen)
 	require.Equal(t, []ReplacementPair{
 		{From: "@acme.com", To: ""},
 		{From: "@", To: ":"},
@@ -88,4 +90,20 @@ func TestLdapConfig(t *testing.T) {
 	require.Equal(t, "WARN", cfg.Logging.Level)
 	require.Equal(t, true, cfg.Logging.IsProduction)
 
+}
+
+func TestServerListen(t *testing.T) {
+	cfg, err := unmarshal([]byte(`
+app:
+  server:
+    listen: "127.0.0.1:9090"
+`))
+	require.NoError(t, err)
+	require.Equal(t, "127.0.0.1:9090", cfg.App.Server.Listen)
+}
+
+func TestServerListenDefault(t *testing.T) {
+	cfg, err := unmarshal([]byte("app: {}"))
+	require.NoError(t, err)
+	require.Equal(t, DefaultServerListen, cfg.App.Server.Listen)
 }

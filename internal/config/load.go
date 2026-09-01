@@ -20,6 +20,9 @@ func unmarshal(content []byte) (*Config, error) {
 	if err := yaml.Unmarshal(content, cfg); err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal config file: %s", content)
 	}
+	if cfg.App.Server.Listen == "" {
+		cfg.App.Server.Listen = DefaultServerListen
+	}
 	return cfg, nil
 }
 

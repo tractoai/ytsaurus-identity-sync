@@ -27,10 +27,9 @@ func TestUsersMigration(t *testing.T) {
 	require.NoError(t, err)
 	azure, err := azuresource.NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)
-	app, err := NewApp(cfg, logger, azure)
-	require.NoError(t, err)
 	yt, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	require.NoError(t, err)
+	app := NewApp(cfg, logger, azure, yt)
 
 	sourceUsers, err := azure.GetUsers()
 	require.NoError(t, err)
@@ -93,10 +92,9 @@ func TestGroupsMigration(t *testing.T) {
 	require.NoError(t, err)
 	azure, err := azuresource.NewAzureReal(cfg.Azure, logger)
 	require.NoError(t, err)
-	app, err := NewApp(cfg, logger, azure)
-	require.NoError(t, err)
 	yt, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	require.NoError(t, err)
+	app := NewApp(cfg, logger, azure, yt)
 
 	sourceGroups, err := azure.GetGroupsWithMembers()
 	require.NoError(t, err)

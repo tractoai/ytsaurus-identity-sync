@@ -1,0 +1,16 @@
+{{- if .Values.monitoring.prometheusRules.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "ytsaurus-identity-sync.fullname" . }}
+  labels:
+    {{- include "ytsaurus-identity-sync.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.prometheusRules.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ include "ytsaurus-identity-sync.fullname" . }}
+      rules:
+        {{- toYaml .Values.monitoring.prometheusRules.rules | nindent 8 }}
+{{- end }}

@@ -150,27 +150,79 @@ func TestStartLogsRejectedSync(t *testing.T) {
 
 func TestSyncOnceReturnsUserSyncError(t *testing.T) {
 	expectedErr := errors.New("users unavailable")
+	metrics := newRecordingMetrics()
 	application := &App{
-		logger: logging.NewDevelopment(),
-		source: &failingSource{usersErr: expectedErr},
+		logger:  logging.NewDevelopment(),
+		source:  &failingSource{usersErr: expectedErr},
+		metrics: metrics,
 	}
 
 	err := application.syncOnce()
 	require.ErrorIs(t, err, expectedErr)
 	require.ErrorContains(t, err, "user sync failed")
+	require.Equal(t, 1, metrics.syncStarted)
+	require.Zero(t, metrics.syncSucceeded)
+	require.Zero(t, metrics.syncPartial)
+	require.Equal(t, 1, metrics.syncErrors[syncStageUsers])
+	require.True(t, metrics.lastCompleted.IsZero())
 }
 
 func TestSyncOnceReturnsGroupSyncError(t *testing.T) {
 	expectedErr := errors.New("groups unavailable")
+	metrics := newRecordingMetrics()
 	application := &App{
 		logger:   logging.NewDevelopment(),
 		source:   &failingSource{groupsErr: expectedErr},
 		ytsaurus: &emptyYtsaurus{},
+		metrics:  metrics,
 	}
 
 	err := application.syncOnce()
 	require.ErrorIs(t, err, expectedErr)
 	require.ErrorContains(t, err, "group sync failed")
+	require.Equal(t, 1, metrics.syncStarted)
+	require.Zero(t, metrics.syncSucceeded)
+	require.Zero(t, metrics.syncPartial)
+	require.Equal(t, 1, metrics.syncErrors[syncStageGroups])
+	require.True(t, metrics.lastCompleted.IsZero())
+}
+
+func TestSyncOnceReturnsYtsaurusListErrors(t *testing.T) {
+	expectedErr := errors.New("YTsaurus unavailable")
+	testCases := []struct {
+		name          string
+		ytsaurus      *metricsYtsaurus
+		expectedStage string
+	}{
+		{
+			name:          "users",
+			ytsaurus:      &metricsYtsaurus{getUsersErr: expectedErr},
+			expectedStage: syncStageUsers,
+		},
+		{
+			name:          "groups",
+			ytsaurus:      &metricsYtsaurus{getGroupsErr: expectedErr},
+			expectedStage: syncStageGroups,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			metrics := newRecordingMetrics()
+			application := &App{
+				logger:   logging.NewDevelopment(),
+				source:   &fakeSource{},
+				ytsaurus: testCase.ytsaurus,
+				metrics:  metrics,
+			}
+
+			err := application.syncOnce()
+			require.ErrorIs(t, err, expectedErr)
+			require.Equal(t, 1, metrics.syncErrors[testCase.expectedStage])
+			require.Zero(t, metrics.syncPartial)
+			require.True(t, metrics.lastCompleted.IsZero())
+		})
+	}
 }
 
 func TestSyncAsyncLogsSyncError(t *testing.T) {
@@ -187,6 +239,27 @@ func TestSyncAsyncLogsSyncError(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	entries := logs.FilterMessage("Sync failed").All()
 	require.Contains(t, entries[0].ContextMap()["error"], "user sync failed")
+	awaitSyncEnd(t, application)
+}
+
+func TestSyncAsyncLogsPartialSync(t *testing.T) {
+	core, logs := observer.New(zap.WarnLevel)
+	application := &App{
+		logger: zap.New(core).Sugar(),
+		source: &fakeSource{
+			users: sourceUsers(fakeUser{ID: "user", Name: "user"}),
+		},
+		ytsaurus: &metricsYtsaurus{createUserErr: errors.New("failed to create user")},
+	}
+
+	require.NoError(t, application.SyncAsync())
+	require.Eventually(t, func() bool {
+		return logs.FilterLevelExact(zap.WarnLevel).Len() == 1
+	}, time.Second, 10*time.Millisecond)
+	warnings := logs.FilterLevelExact(zap.WarnLevel).All()
+	require.Equal(t, "sync partially completed: user sync: 1 YTsaurus mutations failed", warnings[0].Message)
+	require.NotContains(t, warnings[0].ContextMap(), "error")
+	require.Zero(t, logs.FilterMessage("Sync failed").Len())
 	awaitSyncEnd(t, application)
 }
 

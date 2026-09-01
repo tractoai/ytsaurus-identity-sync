@@ -15,7 +15,7 @@ azure:
 syncConfig: |-
   app:
     server:
-      listen: ":8080"
+      listen: ":9090"
     sync_interval: 10m
     username_replacements:
       - from: "@acme.com"

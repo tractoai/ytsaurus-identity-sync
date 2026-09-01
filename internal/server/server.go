@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/app"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
 	"go.uber.org/zap"
@@ -29,7 +31,7 @@ type Syncer interface {
 	SyncAsync() error
 }
 
-func New(logger *zap.SugaredLogger, cfg *config.ServerConfig, application Syncer) *Server {
+func New(logger *zap.SugaredLogger, cfg *config.ServerConfig, application Syncer, metricsGatherer prometheus.Gatherer) *Server {
 	listen := cfg.Listen
 	if listen == "" {
 		listen = config.DefaultServerListen
@@ -44,6 +46,7 @@ func New(logger *zap.SugaredLogger, cfg *config.ServerConfig, application Syncer
 	mux.HandleFunc("/livez", server.health)
 	mux.HandleFunc("/readyz", server.health)
 	mux.HandleFunc("/sync", server.sync)
+	mux.Handle("/metrics", promhttp.HandlerFor(metricsGatherer, promhttp.HandlerOpts{}))
 	server.httpServer = &http.Server{
 		Addr:              listen,
 		Handler:           mux,

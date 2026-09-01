@@ -29,7 +29,7 @@ func TestUsersMigration(t *testing.T) {
 	require.NoError(t, err)
 	yt, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	require.NoError(t, err)
-	app := NewApp(cfg, logger, azure, yt)
+	app := NewApp(cfg, logger, azure, yt, nil)
 
 	sourceUsers, err := azure.GetUsers()
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestGroupsMigration(t *testing.T) {
 	require.NoError(t, err)
 	yt, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	require.NoError(t, err)
-	app := NewApp(cfg, logger, azure, yt)
+	app := NewApp(cfg, logger, azure, yt, nil)
 
 	sourceGroups, err := azure.GetGroupsWithMembers()
 	require.NoError(t, err)

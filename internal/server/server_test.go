@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/app"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
@@ -24,7 +25,7 @@ func (f *fakeSyncer) SyncAsync() error {
 
 func TestNew(t *testing.T) {
 	application := &app.App{}
-	server := New(logging.NewDevelopment(), &config.ServerConfig{}, application)
+	server := New(logging.NewDevelopment(), &config.ServerConfig{}, application, prometheus.NewRegistry())
 
 	require.Same(t, application, server.syncer)
 	require.Equal(t, config.DefaultServerListen, server.httpServer.Addr)
@@ -35,6 +36,7 @@ func TestHealthEndpoints(t *testing.T) {
 		logging.NewDevelopment(),
 		&config.ServerConfig{Listen: "127.0.0.1:0"},
 		&app.App{},
+		prometheus.NewRegistry(),
 	)
 
 	for _, path := range []string{"/livez", "/readyz"} {
@@ -47,6 +49,26 @@ func TestHealthEndpoints(t *testing.T) {
 			require.Equal(t, http.StatusOK, response.Code)
 		})
 	}
+}
+
+func TestMetricsEndpoint(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	counter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_metric_total"})
+	registry.MustRegister(counter)
+	counter.Inc()
+	server := New(
+		logging.NewDevelopment(),
+		&config.ServerConfig{},
+		&app.App{},
+		registry,
+	)
+	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	response := httptest.NewRecorder()
+
+	server.httpServer.Handler.ServeHTTP(response, request)
+
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Contains(t, response.Body.String(), "test_metric_total 1")
 }
 
 func TestSync(t *testing.T) {
@@ -91,6 +113,7 @@ func TestSync(t *testing.T) {
 				logging.NewDevelopment(),
 				&config.ServerConfig{},
 				application,
+				prometheus.NewRegistry(),
 			)
 			request := httptest.NewRequest(testCase.method, "/sync", nil)
 			response := httptest.NewRecorder()

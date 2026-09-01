@@ -1,6 +1,6 @@
 app:
   server:
-    listen: ":8080"
+    listen: ":9090"
   sync_interval: 5m
   username_replacements:
     - from: "@acme.com"

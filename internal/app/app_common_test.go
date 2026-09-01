@@ -31,9 +31,10 @@ const (
 )
 
 type testCase struct {
-	name      string
-	appConfig *config.AppConfig
-	testTime  time.Time
+	name          string
+	appConfig     *config.AppConfig
+	testTime      time.Time
+	expectedError string
 
 	sourceUsersSetUp []source.SourceUser
 	ytUsersSetUp     []internalyt.YtsaurusUser
@@ -224,7 +225,7 @@ func (suite *AppTestSuite) clear() {
 	suite.restartYtsaurusIfNeeded()
 }
 
-func (suite *AppTestSuite) syncOnce(t *testing.T, source source.Source, clock clock.PassiveClock, appConfig *config.AppConfig) {
+func (suite *AppTestSuite) syncOnce(t *testing.T, source source.Source, clock clock.PassiveClock, appConfig *config.AppConfig) error {
 	if appConfig == nil {
 		appConfig = defaultAppConfig
 	}
@@ -246,9 +247,10 @@ func (suite *AppTestSuite) syncOnce(t *testing.T, source source.Source, clock cl
 		logger,
 		source,
 		ytsaurus,
+		nil,
 	)
 
-	require.NoError(t, app.syncOnce())
+	return app.syncOnce()
 }
 
 func (suite *AppTestSuite) check(t *testing.T, expectedUsers []internalyt.YtsaurusUser, expectedGroups []internalyt.YtsaurusGroupWithMembers) {

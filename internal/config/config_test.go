@@ -105,5 +105,5 @@ app:
 func TestServerListenDefault(t *testing.T) {
 	cfg, err := unmarshal([]byte("app: {}"))
 	require.NoError(t, err)
-	require.Equal(t, DefaultServerListen, cfg.App.Server.Listen)
+	require.Equal(t, ":9090", cfg.App.Server.Listen)
 }

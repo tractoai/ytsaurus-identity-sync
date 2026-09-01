@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
 	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
 	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
@@ -97,7 +98,8 @@ var (
 			ytUsersExpected: []internalyt.YtsaurusUser{aliceYT, carolYT},
 		},
 		{
-			name: "remove-limit-users-3",
+			name:          "remove-limit-users-3",
+			expectedError: "delete limit in one cycle reached",
 			appConfig: &config.AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
@@ -107,7 +109,8 @@ var (
 			ytUsersExpected: []internalyt.YtsaurusUser{aliceYT, bobYT, carolYT},
 		},
 		{
-			name: "remove-limit-groups-3",
+			name:          "remove-limit-groups-3",
+			expectedError: "delete limit in one cycle reached",
 			appConfig: &config.AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
@@ -243,7 +246,12 @@ func (suite *AppTestSuite) TestSyncOnce() {
 				groups: tc.sourceGroupsSetUp,
 			}
 			setupYtsaurusObjects(t, suite.ytsaurusClient, tc.ytUsersSetUp, tc.ytGroupsSetUp)
-			suite.syncOnce(t, src, testclock.NewFakePassiveClock(testTime), tc.appConfig)
+			err := suite.syncOnce(t, src, testclock.NewFakePassiveClock(testTime), tc.appConfig)
+			if tc.expectedError == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tc.expectedError)
+			}
 			suite.check(t, tc.ytUsersExpected, tc.ytGroupsExpected)
 		})
 	}

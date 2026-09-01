@@ -24,16 +24,41 @@ func (a *App) syncOnce() error {
 }
 
 func (a *App) syncOnceLocked() error {
+	metrics := a.metricsRecorder()
+	startedAt := time.Now()
+	defer func() {
+		metrics.ObserveSyncDuration(time.Since(startedAt))
+	}()
+	metrics.ResetYTMutationErrors()
+	metrics.SyncStarted()
 	a.logger.Info("Start syncing")
 	defer a.logger.Info("Finish syncing")
 
-	actualYtsaurusUserMap, err := a.syncUsers()
-	if err != nil {
-		return errors.Wrap(err, "user sync failed")
+	var partialErrors []error
+	actualYtsaurusUserMap, usersErr := a.syncUsers()
+	if usersErr != nil && !errors.Is(usersErr, ErrSyncPartial) {
+		metrics.SyncFailed(syncStageUsers)
+		return errors.Wrap(usersErr, "user sync failed")
 	}
-	if err := a.syncGroups(actualYtsaurusUserMap); err != nil {
-		return errors.Wrap(err, "group sync failed")
+	if usersErr != nil {
+		partialErrors = append(partialErrors, usersErr)
 	}
+	groupsErr := a.syncGroups(actualYtsaurusUserMap)
+	if groupsErr != nil && !errors.Is(groupsErr, ErrSyncPartial) {
+		metrics.SyncFailed(syncStageGroups)
+		return errors.Wrap(groupsErr, "group sync failed")
+	}
+	if groupsErr != nil {
+		partialErrors = append(partialErrors, groupsErr)
+	}
+	completedAt := time.Now()
+	metrics.SetLastCompletedTimestamp(completedAt)
+	if len(partialErrors) > 0 {
+		metrics.SyncPartiallySucceeded()
+		return newPartialSyncError(partialErrors...)
+	}
+	metrics.SyncSucceeded()
+	metrics.SetLastSuccessTimestamp(completedAt)
 	return nil
 }
 
@@ -66,16 +91,18 @@ func (a *App) syncUsers() (map[source.ObjectID]internalyt.YtsaurusUser, error) {
 		return nil, errors.Wrap(err, "failed to calculate users diff")
 	}
 	if a.isRemoveLimitReached(len(diff.remove)) {
+		a.metricsRecorder().RemoveLimitExceeded(objectTypeUser)
 		return nil, fmt.Errorf("delete limit in one cycle reached: %d %v", len(diff.remove), diff.remove)
 	}
 
 	var bannedCount, removedCount int
 	var createErrCount, updateErrCount, banOrremoveErrCount int
+	metrics := a.metricsRecorder()
 	for _, user := range diff.remove {
 		wasBanned, wasRemoved, removeErr := a.banOrRemoveUser(user)
 		if removeErr != nil {
 			banOrremoveErrCount++
-			a.logger.Errorw("failed to ban or remove user", zap.Error(err), "user", user)
+			a.logger.Errorw("failed to ban or remove user", zap.Error(removeErr), "user", user)
 		}
 		if wasBanned {
 			bannedCount++
@@ -88,15 +115,21 @@ func (a *App) syncUsers() (map[source.ObjectID]internalyt.YtsaurusUser, error) {
 		err = a.ytsaurus.CreateUser(user)
 		if err != nil {
 			createErrCount++
+			metrics.YTMutationFailed(objectTypeUser, mutationCreate)
 			a.logger.Errorw("failed to create user", zap.Error(err), "user", user)
+			continue
 		}
+		metrics.YTMutationSucceeded(objectTypeUser, mutationCreate)
 	}
 	for _, updatedUser := range diff.update {
 		err = a.ytsaurus.UpdateUser(updatedUser.OldUsername, updatedUser.YtsaurusUser)
 		if err != nil {
 			updateErrCount++
+			metrics.YTMutationFailed(objectTypeUser, mutationUpdate)
 			a.logger.Errorw("failed to update user", zap.Error(err), "user", updatedUser)
+			continue
 		}
+		metrics.YTMutationSucceeded(objectTypeUser, mutationUpdate)
 	}
 	a.logger.Infow("Finish syncing users",
 		"created", len(diff.create)-createErrCount,
@@ -107,6 +140,10 @@ func (a *App) syncUsers() (map[source.ObjectID]internalyt.YtsaurusUser, error) {
 		"banned", bannedCount,
 		"ban_or_remove_errors", banOrremoveErrCount,
 	)
+	mutationErrCount := createErrCount + updateErrCount + banOrremoveErrCount
+	if mutationErrCount > 0 {
+		return diff.result, newPartialSyncError(errors.Errorf("user sync: %d YTsaurus mutations failed", mutationErrCount))
+	}
 	return diff.result, nil
 }
 
@@ -126,30 +163,41 @@ func (a *App) syncGroups(usersMap map[source.ObjectID]internalyt.YtsaurusUser) e
 		return errors.Wrap(err, "failed to calculate groups diff")
 	}
 	if a.isRemoveLimitReached(len(diff.groupsToRemove)) {
+		a.metricsRecorder().RemoveLimitExceeded(objectTypeGroup)
 		return fmt.Errorf("delete limit in one cycle reached: %d %v", len(diff.groupsToRemove), diff)
 	}
 
 	var createErrCount, updateErrCount, removeErrCount int
+	metrics := a.metricsRecorder()
 	for _, group := range diff.groupsToRemove {
 		err = a.ytsaurus.RemoveGroup(group.Name)
 		if err != nil {
 			removeErrCount++
+			metrics.YTMutationFailed(objectTypeGroup, mutationRemove)
 			a.logger.Errorw("failed to remove group", zap.Error(err), "group", group)
+			continue
 		}
+		metrics.YTMutationSucceeded(objectTypeGroup, mutationRemove)
 	}
 	for _, group := range diff.groupsToCreate {
 		err = a.ytsaurus.CreateGroup(group)
 		if err != nil {
 			createErrCount++
+			metrics.YTMutationFailed(objectTypeGroup, mutationCreate)
 			a.logger.Errorw("failed to create group", zap.Error(err), "group", group)
+			continue
 		}
+		metrics.YTMutationSucceeded(objectTypeGroup, mutationCreate)
 	}
 	for _, updatedGroup := range diff.groupsToUpdate {
 		err = a.ytsaurus.UpdateGroup(updatedGroup.OldName, updatedGroup.YtsaurusGroup)
 		if err != nil {
 			updateErrCount++
+			metrics.YTMutationFailed(objectTypeGroup, mutationUpdate)
 			a.logger.Errorw("failed to update group", zap.Error(err), "group", updatedGroup)
+			continue
 		}
+		metrics.YTMutationSucceeded(objectTypeGroup, mutationUpdate)
 	}
 	a.logger.Infow("Finish syncing groups",
 		"created", len(diff.groupsToCreate)-createErrCount,
@@ -159,6 +207,11 @@ func (a *App) syncGroups(usersMap map[source.ObjectID]internalyt.YtsaurusUser) e
 		"removed", len(diff.groupsToRemove)-removeErrCount,
 		"remove_errors", removeErrCount,
 	)
+	mutationErrCount := createErrCount + updateErrCount + removeErrCount
+	var partialErrors []error
+	if mutationErrCount > 0 {
+		partialErrors = append(partialErrors, errors.Errorf("group sync: %d YTsaurus mutations failed", mutationErrCount))
+	}
 
 	a.logger.Info("Start syncing group memberships")
 	var addMemberErrCount, removeMemberErrCount int
@@ -166,17 +219,21 @@ func (a *App) syncGroups(usersMap map[source.ObjectID]internalyt.YtsaurusUser) e
 		err = a.ytsaurus.RemoveMember(membership.Username, membership.GroupName)
 		if err != nil {
 			removeMemberErrCount++
+			metrics.YTMutationFailed(objectTypeMembership, mutationRemove)
 			a.logger.Errorw("failed to remove member", zap.Error(err), "user", membership.Username, "group", membership.GroupName)
-			// TODO: alerts
+			continue
 		}
+		metrics.YTMutationSucceeded(objectTypeMembership, mutationRemove)
 	}
 	for _, membership := range diff.membersToAdd {
 		err = a.ytsaurus.AddMember(membership.Username, membership.GroupName)
 		if err != nil {
 			addMemberErrCount++
+			metrics.YTMutationFailed(objectTypeMembership, mutationAdd)
 			a.logger.Errorw("failed to add member", zap.Error(err), "user", membership.Username, "group", membership.GroupName)
-			// TODO: alerts
+			continue
 		}
+		metrics.YTMutationSucceeded(objectTypeMembership, mutationAdd)
 	}
 
 	a.logger.Infow("Finish syncing group memberships",
@@ -185,6 +242,13 @@ func (a *App) syncGroups(usersMap map[source.ObjectID]internalyt.YtsaurusUser) e
 		"removed", len(diff.membersToRemove)-removeMemberErrCount,
 		"remove_errors", removeMemberErrCount,
 	)
+	mutationErrCount = addMemberErrCount + removeMemberErrCount
+	if mutationErrCount > 0 {
+		partialErrors = append(partialErrors, errors.Errorf("membership sync: %d YTsaurus mutations failed", mutationErrCount))
+	}
+	if len(partialErrors) > 0 {
+		return newPartialSyncError(partialErrors...)
+	}
 	return nil
 }
 
@@ -503,15 +567,33 @@ func (a *App) isGroupMembersChanged(sourceGroup source.SourceGroupWithMembers, y
 func (a *App) banOrRemoveUser(user internalyt.YtsaurusUser) (wasBanned, wasRemoved bool, err error) {
 	// Ban settings is disabled.
 	if a.banDuration == 0 {
-		return false, true, a.ytsaurus.RemoveUser(user.Username)
+		err = a.ytsaurus.RemoveUser(user.Username)
+		if err != nil {
+			a.metricsRecorder().YTMutationFailed(objectTypeUser, mutationRemove)
+			return false, false, err
+		}
+		a.metricsRecorder().YTMutationSucceeded(objectTypeUser, mutationRemove)
+		return false, true, nil
 	}
 	// If user is not already banned we should do it.
 	if !user.IsBanned() {
-		return true, false, a.ytsaurus.BanUser(user.Username)
+		err = a.ytsaurus.BanUser(user.Username)
+		if err != nil {
+			a.metricsRecorder().YTMutationFailed(objectTypeUser, mutationBan)
+			return false, false, err
+		}
+		a.metricsRecorder().YTMutationSucceeded(objectTypeUser, mutationBan)
+		return true, false, nil
 	}
 	// If user was banned longer than setting permits, we remove it.
 	if user.IsBanned() && time.Since(user.BannedSince) > a.banDuration {
-		return false, true, a.ytsaurus.RemoveUser(user.Username)
+		err = a.ytsaurus.RemoveUser(user.Username)
+		if err != nil {
+			a.metricsRecorder().YTMutationFailed(objectTypeUser, mutationRemove)
+			return false, false, err
+		}
+		a.metricsRecorder().YTMutationSucceeded(objectTypeUser, mutationRemove)
+		return false, true, nil
 	}
 	a.logger.Debugw("user is banned, but not yet removed", "user", user.Username, "since", user.BannedSince)
 	return false, false, nil

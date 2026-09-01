@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 golang:1.26
+FROM golang:1.26-alpine AS builder
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -7,10 +7,10 @@ RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 COPY pkg ./pkg
-RUN GOOS=linux GOARCH=amd64 go build -o /ytsaurus-identity-sync ./cmd/ytsaurus-identity-sync
+RUN go build -o /ytsaurus-identity-sync ./cmd/ytsaurus-identity-sync
 
-FROM golang:1.26
+FROM alpine:3.23
 
-RUN apt-get update && apt-get install -y telnet curl strace lsof less gzip dnsutils gettext-base
-COPY --from=0 /ytsaurus-identity-sync /ytsaurus-identity-sync
+RUN apk add --no-cache curl
+COPY --from=builder /ytsaurus-identity-sync /ytsaurus-identity-sync
 CMD ["/ytsaurus-identity-sync"]

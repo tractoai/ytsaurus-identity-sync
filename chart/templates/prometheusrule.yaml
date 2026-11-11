@@ -3,6 +3,9 @@
 {{- range $rules }}
 {{- if hasKey . "alert" }}
 {{- $_ := set . "alert" (printf "%s%s" ($.Values.yt.clusterName | title) .alert) }}
+{{- if $.Values.monitoring.prometheusRules.additionalAlertLabels }}
+{{- $_ := set . "labels" (mergeOverwrite (deepCopy $.Values.monitoring.prometheusRules.additionalAlertLabels) (.labels | default dict)) }}
+{{- end }}
 {{- end }}
 {{- end }}
 apiVersion: monitoring.coreos.com/v1

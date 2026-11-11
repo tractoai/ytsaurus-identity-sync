@@ -31,7 +31,10 @@ monitoring:
     additionalLabels: {}
   prometheusRules:
     enabled: false
+    # Additional labels for the PrometheusRule resource.
     additionalLabels: {}
+    # Labels added to every alert. Per-alert labels take precedence.
+    additionalAlertLabels: {}
     # Alert names are prefixed with the capitalized yt.clusterName.
     rules:
       - alert: IdentitySyncLastCompletedSyncTooOld
@@ -49,6 +52,21 @@ monitoring:
         annotations:
           summary: YTsaurus identity synchronization mutations failed during the last iteration
           description: '{{ printf "%.0f" $value }} objects of type {{ $labels.object_type }} could not be synchronized during the last iteration (operation={{ $labels.operation }}).'
+      - alert: IdentitySyncRemoveLimitExceeded
+        # The counter series appears on the first failure, so also detect its first appearance.
+        expr: |
+          increase(ytsaurus_identity_sync_remove_limit_exceeded_total{object_type=~"user|group"}[15m]) > 0
+          or
+          (
+            ytsaurus_identity_sync_remove_limit_exceeded_total{object_type=~"user|group"} > 0
+            unless
+            ytsaurus_identity_sync_remove_limit_exceeded_total{object_type=~"user|group"} offset 15m
+          )
+        labels:
+          severity: warning
+        annotations:
+          summary: YTsaurus identity synchronization stopped by the removal limit
+          description: 'The removal limit was reached for objects of type {{ $labels.object_type }}. Synchronization stopped before applying changes for this object type. Check source data and the configured removal limit.'
 
 podAnnotations: {}
 podLabels: {}

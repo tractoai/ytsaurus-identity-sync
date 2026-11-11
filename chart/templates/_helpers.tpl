@@ -27,7 +27,7 @@ If release name contains chart name it will be used as a full name.
 Create chart name and version as used by the chart label.
 */}}
 {{- define "ytsaurus-identity-sync.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- .Chart.Name | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -36,10 +36,8 @@ Common labels
 {{- define "ytsaurus-identity-sync.labels" -}}
 helm.sh/chart: {{ include "ytsaurus-identity-sync.chart" . }}
 {{ include "ytsaurus-identity-sync.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+ytsaurus.tech/cluster-name: {{ .Values.yt.clusterName | quote }}
 {{- end }}
 
 {{/*

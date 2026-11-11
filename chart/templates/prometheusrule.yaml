@@ -1,4 +1,10 @@
 {{- if .Values.monitoring.prometheusRules.enabled }}
+{{- $rules := deepCopy .Values.monitoring.prometheusRules.rules }}
+{{- range $rules }}
+{{- if hasKey . "alert" }}
+{{- $_ := set . "alert" (printf "%s%s" ($.Values.yt.clusterName | title) .alert) }}
+{{- end }}
+{{- end }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -12,5 +18,5 @@ spec:
   groups:
     - name: {{ include "ytsaurus-identity-sync.fullname" . }}
       rules:
-        {{- toYaml .Values.monitoring.prometheusRules.rules | nindent 8 }}
+        {{- toYaml $rules | nindent 8 }}
 {{- end }}

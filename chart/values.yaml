@@ -32,8 +32,9 @@ monitoring:
   prometheusRules:
     enabled: false
     additionalLabels: {}
+    # Alert names are prefixed with the capitalized yt.clusterName.
     rules:
-      - alert: YtsaurusIdentitySyncLastCompletedSyncTooOld
+      - alert: IdentitySyncLastCompletedSyncTooOld
         expr: time() - ytsaurus_identity_sync_last_completed_timestamp_seconds > 3600
         for: 15m
         labels:
@@ -41,7 +42,7 @@ monitoring:
         annotations:
           summary: YTsaurus identity synchronization has not completed for more than an hour
           description: No YTsaurus identity synchronization has completed successfully or partially during the last hour.
-      - alert: YtsaurusIdentitySyncMutationErrors
+      - alert: IdentitySyncMutationErrors
         expr: ytsaurus_identity_sync_yt_mutation_errors{object_type=~"user|group|membership"} > 0
         labels:
           severity: warning
@@ -95,6 +96,7 @@ tolerations: []
 affinity: {}
 
 yt:
+  clusterName: ytsaurus
   proxy: yt-proxy.company.com
   token: "yt-secret-token"
 

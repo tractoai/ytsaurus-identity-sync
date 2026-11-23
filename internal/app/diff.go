@@ -402,18 +402,36 @@ func (a *App) diffUsers(
 ) (*usersDiff, error) {
 	sourceUsersMap := make(map[source.ObjectID]source.SourceUser)
 	for _, user := range sourceUsers {
+		if a.allowUserIDRebinding {
+			if _, duplicate := sourceUsersMap[user.GetID()]; duplicate || user.GetID() == "" {
+				return nil, errors.Errorf("cannot rebind users: empty or duplicate source user ID %q", user.GetID())
+			}
+		}
 		sourceUsersMap[user.GetID()] = user
 	}
 
 	ytUsersMap := make(map[source.ObjectID]internalyt.YtsaurusUser)
-	resultUsersMap := make(map[source.ObjectID]internalyt.YtsaurusUser)
 	for _, user := range ytUsers {
 		sourceUser, err := a.buildSourceUser(&user)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to build source user")
 		}
+		if a.allowUserIDRebinding {
+			if _, duplicate := ytUsersMap[sourceUser.GetID()]; duplicate || sourceUser.GetID() == "" {
+				return nil, errors.Errorf("cannot rebind users: empty or duplicate YTsaurus source user ID %q", sourceUser.GetID())
+			}
+		}
 		ytUsersMap[sourceUser.GetID()] = user
-		resultUsersMap[sourceUser.GetID()] = user
+	}
+
+	if a.allowUserIDRebinding {
+		if err := a.rebindUsersByName(sourceUsersMap, ytUsersMap); err != nil {
+			return nil, err
+		}
+	}
+	resultUsersMap := make(map[source.ObjectID]internalyt.YtsaurusUser)
+	for objectID, user := range ytUsersMap {
+		resultUsersMap[objectID] = user
 	}
 
 	var create, remove []internalyt.YtsaurusUser
@@ -457,6 +475,44 @@ func (a *App) diffUsers(
 		remove: remove,
 		result: resultUsersMap,
 	}, nil
+}
+
+// rebindUsersByName matches new source IDs to managed users that would otherwise be removed.
+// It changes only the map keys: diffUsers will update the stored attributes and clear the ban.
+func (a *App) rebindUsersByName(sourceUsers map[source.ObjectID]source.SourceUser, ytUsers map[source.ObjectID]internalyt.YtsaurusUser) error {
+	sourceIDsByName := make(map[string]source.ObjectID)
+	for objectID, user := range sourceUsers {
+		username := a.buildUsername(user)
+		if previousID, duplicate := sourceIDsByName[username]; duplicate {
+			return errors.Errorf("cannot rebind users: source IDs %q and %q map to username %q", previousID, objectID, username)
+		}
+		sourceIDsByName[username] = objectID
+	}
+	ytIDsByName := make(map[string]source.ObjectID)
+	for objectID, user := range ytUsers {
+		if previousID, duplicate := ytIDsByName[user.Username]; duplicate {
+			return errors.Errorf("cannot rebind users: YTsaurus source IDs %q and %q have username %q", previousID, objectID, user.Username)
+		}
+		ytIDsByName[user.Username] = objectID
+	}
+
+	for username, newID := range sourceIDsByName {
+		// An existing match by ID always takes precedence over a match by name.
+		if _, exists := ytUsers[newID]; exists {
+			continue
+		}
+		oldID, exists := ytIDsByName[username]
+		if !exists {
+			continue
+		}
+		if _, stillPresent := sourceUsers[oldID]; stillPresent {
+			return errors.Errorf("cannot rebind user %q from ID %q to %q: previous ID is still present in source", username, oldID, newID)
+		}
+		ytUsers[newID] = ytUsers[oldID]
+		delete(ytUsers, oldID)
+		a.logger.Infow("Planned user ID rebinding", "username", username, "old_source_id", oldID, "new_source_id", newID)
+	}
+	return nil
 }
 
 func (a *App) buildUsername(sourceUser source.SourceUser) string {

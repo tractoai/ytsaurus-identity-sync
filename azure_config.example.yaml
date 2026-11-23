@@ -16,6 +16,9 @@ app:
 azure:
   tenant: "acme.onmicrosoft.com"
   client_id: "abcdefgh-a000-b111-c222-abcdef123456"
+  # Reuse a managed YT user for a new Azure ID with the same normalized username.
+  # Preserves the existing YT object and its permissions, and clears its ban.
+  allow_user_id_rebinding: false
   timeout: 1s
   users_filter: "(accountEnabled eq true) and (userType eq 'Member')"
   groups_filter: "displayName -ne ''"

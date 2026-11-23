@@ -52,11 +52,12 @@ type Ytsaurus interface {
 }
 
 type App struct {
-	syncInterval      time.Duration
-	usernameReplaces  []config.ReplacementPair
-	groupnameReplaces []config.ReplacementPair
-	removeLimit       int
-	banDuration       time.Duration
+	syncInterval         time.Duration
+	usernameReplaces     []config.ReplacementPair
+	groupnameReplaces    []config.ReplacementPair
+	removeLimit          int
+	banDuration          time.Duration
+	allowUserIDRebinding bool
 
 	ytsaurus Ytsaurus
 	source   source.Source
@@ -75,11 +76,12 @@ func NewApp(cfg *config.Config, logger *zap.SugaredLogger, source source.Source,
 	signal.Notify(sigCh, syscall.SIGUSR1)
 
 	return &App{
-		syncInterval:      cfg.App.SyncInterval,
-		usernameReplaces:  cfg.App.UsernameReplacements,
-		groupnameReplaces: cfg.App.GroupnameReplacements,
-		removeLimit:       cfg.App.RemoveLimit,
-		banDuration:       cfg.App.BanBeforeRemoveDuration,
+		syncInterval:         cfg.App.SyncInterval,
+		usernameReplaces:     cfg.App.UsernameReplacements,
+		groupnameReplaces:    cfg.App.GroupnameReplacements,
+		removeLimit:          cfg.App.RemoveLimit,
+		banDuration:          cfg.App.BanBeforeRemoveDuration,
+		allowUserIDRebinding: cfg.Azure != nil && cfg.Azure.AllowUserIDRebinding,
 
 		ytsaurus: ytsaurus,
 		source:   source,

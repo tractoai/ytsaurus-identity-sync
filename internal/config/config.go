@@ -53,6 +53,12 @@ type AzureConfig struct {
 	ClientID           string `yaml:"client_id"`
 	ClientSecretEnvVar string `yaml:"client_secret_env_var"` // default: "AZURE_CLIENT_SECRET"
 
+	// AllowUserIDRebinding reuses a managed YTsaurus user when a new Azure ID has the same
+	// normalized username and the previous ID is absent from the filtered source users.
+	// This preserves the YTsaurus object and its permissions, and clears its ban.
+	// Disabled by default. Ambiguous usernames or IDs fail user sync before mutations.
+	AllowUserIDRebinding bool `yaml:"allow_user_id_rebinding"`
+
 	// We sync 3 entities independently: users, groups, and memberships.
 	//
 	// USERS are filtered using TWO filters applied sequentially:

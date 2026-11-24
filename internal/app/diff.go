@@ -353,7 +353,7 @@ func (a *App) diffGroups(
 			// This shouldn't happen until we add more fields in YTsaurus' group source attribute.
 			a.logger.Warnw(
 				"Detected group fields update (we handling that correctly, though case is not expected)",
-				"group", ytGroupWithMembers.YtsaurusGroup.Name,
+				"group", ytGroupWithMembers.Name,
 			)
 			a.logger.Debugw(
 				"Detected group fields update",

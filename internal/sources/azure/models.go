@@ -39,6 +39,14 @@ func (au AzureUser) GetName() string {
 	return au.PrincipalName
 }
 
+func (au AzureUser) GetRebindingAttributes() map[string]string {
+	return map[string]string{
+		"first_name": au.FirstName,
+		"last_name":  au.LastName,
+		"email":      au.Email,
+	}
+}
+
 func (au AzureUser) GetRaw() (map[string]any, error) {
 	bytes, err := yson.Marshal(au)
 	if err != nil {

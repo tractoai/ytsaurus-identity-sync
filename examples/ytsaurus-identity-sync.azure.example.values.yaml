@@ -22,13 +22,14 @@ syncConfig: |-
         to: ""
     remove_limit: 10
     ban_before_remove_duration: 168h # 7d
+    # Reuse a managed YT user for a new source ID with the same normalized username
+    # and matching provider profile attributes (Azure: first name, last name, email).
+    # Preserves the existing YT object and its permissions, and clears its ban.
+    allow_user_id_rebinding: false
 
   azure:
     tenant: "acme.onmicrosoft.com"
     client_id: "abcdef-1111-2222-333-deadbeef"
-    # Reuse a managed YT user for a new Azure ID with the same normalized username.
-    # Preserves the existing YT object and its permissions, and clears its ban.
-    allow_user_id_rebinding: false
     timeout: 1m
     users_filter: "(accountEnabled eq true) and (userType eq 'Member')
       and not (jobTitle in ('Shared mailbox'))

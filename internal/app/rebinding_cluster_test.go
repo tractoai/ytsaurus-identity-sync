@@ -14,22 +14,16 @@ import (
 	"k8s.io/utils/clock"
 )
 
-// Azure decoding is real; only fetching users is replaced to avoid external API calls.
-type rebindingAzureSource struct {
-	*azure.AzureReal
-	users []source.SourceUser
-}
-
-func (s *rebindingAzureSource) GetUsers() ([]source.SourceUser, error) {
-	return s.users, nil
-}
-
 func (suite *AppTestSuite) TestAzureUserIDRebindingPreservesObject() {
 	t := suite.T()
 	defer suite.clear()
-	oldUser := azure.AzureUser{AzureID: "old-azure-id", PrincipalName: "alice@acme.com"}
+	oldUser := azure.AzureUser{
+		AzureID: "old-azure-id", PrincipalName: "alice@acme.com",
+		FirstName: "Alice", LastName: "Smith", Email: "alice@acme.com", DisplayName: "Alice Smith",
+	}
 	newUser := oldUser
 	newUser.AzureID = "new-azure-id"
+	newUser.DisplayName = "Smith, Alice"
 	oldRaw, err := oldUser.GetRaw()
 	require.NoError(t, err)
 	since := time.Now().UTC().Add(-48 * time.Hour).Format(time.RFC3339)
@@ -53,15 +47,15 @@ func (suite *AppTestSuite) TestAzureUserIDRebindingPreservesObject() {
 			cfg := &config.Config{
 				App: config.AppConfig{
 					UsernameReplacements: defaultUsernameReplacements, BanBeforeRemoveDuration: time.Hour, RemoveLimit: 1,
+					AllowUserIDRebinding: true,
 				},
-				Azure: &config.AzureConfig{AllowUserIDRebinding: true},
 				Ytsaurus: config.YtsaurusConfig{
 					Proxy: proxy, SourceAttributeName: "azure", ApplyUserChanges: applyChanges, Timeout: 10 * time.Second,
 				},
 			}
 			ytsaurus, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 			require.NoError(t, err)
-			src := &rebindingAzureSource{AzureReal: &azure.AzureReal{}, users: []source.SourceUser{newUser}}
+			src := &rebindingSource{Source: &azure.AzureReal{}, users: []source.SourceUser{newUser}}
 			application := NewApp(cfg, logger, src, ytsaurus, nil)
 			t.Cleanup(application.Stop)
 			_, err = application.syncUsers()

@@ -81,7 +81,7 @@ func NewApp(cfg *config.Config, logger *zap.SugaredLogger, source source.Source,
 		groupnameReplaces:    cfg.App.GroupnameReplacements,
 		removeLimit:          cfg.App.RemoveLimit,
 		banDuration:          cfg.App.BanBeforeRemoveDuration,
-		allowUserIDRebinding: cfg.Azure != nil && cfg.Azure.AllowUserIDRebinding,
+		allowUserIDRebinding: cfg.App.AllowUserIDRebinding,
 
 		ytsaurus: ytsaurus,
 		source:   source,

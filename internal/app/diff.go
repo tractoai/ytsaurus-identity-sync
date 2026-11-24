@@ -477,7 +477,7 @@ func (a *App) diffUsers(
 	}, nil
 }
 
-// rebindUsersByName matches new source IDs to managed users that would otherwise be removed.
+// rebindUsersByName matches new source IDs to managed users with the same username and profile.
 // It changes only the map keys: diffUsers will update the stored attributes and clear the ban.
 func (a *App) rebindUsersByName(sourceUsers map[source.ObjectID]source.SourceUser, ytUsers map[source.ObjectID]internalyt.YtsaurusUser) error {
 	sourceIDsByName := make(map[string]source.ObjectID)
@@ -507,6 +507,12 @@ func (a *App) rebindUsersByName(sourceUsers map[source.ObjectID]source.SourceUse
 		}
 		if _, stillPresent := sourceUsers[oldID]; stillPresent {
 			return errors.Errorf("cannot rebind user %q from ID %q to %q: previous ID is still present in source", username, oldID, newID)
+		}
+		for field, newValue := range sourceUsers[newID].GetRebindingAttributes() {
+			oldValue, oldOK := ytUsers[oldID].SourceRaw[field].(string)
+			if !oldOK || newValue != oldValue {
+				return errors.Errorf("cannot rebind user %q from ID %q to %q: %s is missing or does not match", username, oldID, newID, field)
+			}
 		}
 		ytUsers[newID] = ytUsers[oldID]
 		delete(ytUsers, oldID)

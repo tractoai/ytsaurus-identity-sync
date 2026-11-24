@@ -429,6 +429,7 @@ func testYtsaurusUserWithID(id, name string) internalyt.YtsaurusUser {
 			"name":       name,
 			"email":      "",
 			"first_name": "",
+			"last_name":  "",
 		},
 	}
 }

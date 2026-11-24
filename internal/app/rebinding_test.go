@@ -7,12 +7,24 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/sources/azure"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/sources/ldap"
 	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
 	"github.com/tractoai/ytsaurus-identity-sync/pkg/source"
 	"go.uber.org/zap"
 )
 
-func newRebindingTestApp(t *testing.T, azureConfig *config.AzureConfig) *App {
+// Provider decoding is real; only fetching users is replaced to avoid external API calls.
+type rebindingSource struct {
+	source.Source
+	users []source.SourceUser
+}
+
+func (s *rebindingSource) GetUsers() ([]source.SourceUser, error) {
+	return s.users, nil
+}
+
+func newRebindingTestApp(t *testing.T, allowRebinding bool) *App {
 	t.Helper()
 	application := NewApp(&config.Config{
 		App: config.AppConfig{
@@ -20,36 +32,37 @@ func newRebindingTestApp(t *testing.T, azureConfig *config.AzureConfig) *App {
 			GroupnameReplacements:   defaultGroupnameReplacements,
 			BanBeforeRemoveDuration: 24 * time.Hour,
 			RemoveLimit:             1,
+			AllowUserIDRebinding:    allowRebinding,
 		},
-		Azure: azureConfig,
 	}, zap.NewNop().Sugar(), &fakeSource{}, &metricsYtsaurus{}, newRecordingMetrics())
 	t.Cleanup(application.Stop)
 	return application
 }
 
 func TestUserIDRebinding(t *testing.T) {
-	newUser := fakeUser{ID: "new-alice-id", Name: "ALICE@acme.com", FirstName: "Alice updated"}
+	newUser := aliceSource
+	newUser.ID = "new-alice-id"
+	newUser.Name = "ALICE@acme.com"
 	newYTUser := ytsaurusUserFromSource(newUser)
 	for _, tc := range []struct {
-		name        string
-		azureConfig *config.AzureConfig
-		oldUser     internalyt.YtsaurusUser
-		wantRebind  bool
+		name           string
+		allowRebinding bool
+		oldUser        internalyt.YtsaurusUser
+		wantRebind     bool
 	}{
-		{name: "no Azure config", oldUser: aliceYT},
-		{name: "disabled by default", azureConfig: &config.AzureConfig{}, oldUser: aliceYT},
-		{name: "active user", azureConfig: &config.AzureConfig{AllowUserIDRebinding: true}, oldUser: aliceYT, wantRebind: true},
+		{name: "disabled by default", oldUser: aliceYT},
+		{name: "active user", allowRebinding: true, oldUser: aliceYT, wantRebind: true},
 		{
-			name: "banned user", azureConfig: &config.AzureConfig{AllowUserIDRebinding: true},
+			name: "banned user", allowRebinding: true,
 			oldUser: bannedUser(aliceYT, time.Now()), wantRebind: true,
 		},
 		{
-			name: "expired ban", azureConfig: &config.AzureConfig{AllowUserIDRebinding: true},
+			name: "expired ban", allowRebinding: true,
 			oldUser: bannedUser(aliceYT, time.Now().Add(-48*time.Hour)), wantRebind: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			application := newRebindingTestApp(t, tc.azureConfig)
+			application := newRebindingTestApp(t, tc.allowRebinding)
 			diff, err := application.diffUsers(sourceUsers(newUser), []internalyt.YtsaurusUser{tc.oldUser})
 			require.NoError(t, err)
 			require.Equal(t, map[source.ObjectID]internalyt.YtsaurusUser{newUser.ID: newYTUser}, diff.result)
@@ -80,9 +93,12 @@ func TestUserIDRebinding(t *testing.T) {
 }
 
 func TestUserIDRebindingPrefersExistingID(t *testing.T) {
-	application := newRebindingTestApp(t, &config.AzureConfig{AllowUserIDRebinding: true})
+	application := newRebindingTestApp(t, true)
 	renamedAlice := aliceSource
 	renamedAlice.Name = bobSource.Name
+	renamedAlice.FirstName = "Alicia"
+	renamedAlice.LastName = "Jones"
+	renamedAlice.Email = "alicia@example.com"
 	diff, err := application.diffUsers(sourceUsers(renamedAlice), []internalyt.YtsaurusUser{aliceYT, bobYT})
 	require.NoError(t, err)
 	require.Empty(t, diff.create)
@@ -90,8 +106,109 @@ func TestUserIDRebindingPrefersExistingID(t *testing.T) {
 	require.Equal(t, []UpdatedYtsaurusUser{{OldUsername: aliceYT.Username, YtsaurusUser: ytsaurusUserFromSource(renamedAlice)}}, diff.update)
 }
 
+func TestUserIDRebindingChecksProfile(t *testing.T) {
+	for _, provider := range []struct {
+		name     string
+		source   source.Source
+		oldUser  source.SourceUser
+		newAttrs map[string]any
+		fields   []string
+	}{
+		{
+			name: "azure", source: &azure.AzureReal{},
+			oldUser: azure.AzureUser{
+				AzureID: "old-azure-id", PrincipalName: "alice@acme.com",
+				FirstName: "Alice", LastName: "Smith", Email: "alice@acme.com", DisplayName: "Alice Smith",
+			},
+			newAttrs: map[string]any{"id": "new-azure-id", "principal_name": "ALICE@acme.com", "display_name": "Smith, Alice"},
+			fields:   []string{"first_name", "last_name", "email"},
+		},
+		{
+			name: "ldap", source: &ldap.Ldap{},
+			oldUser:  ldap.LdapUser{UID: "old-ldap-id", Username: "alice@acme.com", FirstName: "Alice"},
+			newAttrs: map[string]any{"uid": "new-ldap-id", "username": "ALICE@acme.com"},
+			fields:   []string{"first_name"},
+		},
+	} {
+		for _, field := range provider.fields {
+			for _, tc := range []struct {
+				name       string
+				change     func(oldRaw, newRaw map[string]any)
+				wantRebind bool
+			}{
+				{name: "matching", wantRebind: true},
+				{
+					name: "different",
+					change: func(_, newRaw map[string]any) {
+						newRaw[field] = "different"
+					},
+				},
+				{
+					name: "cleared",
+					change: func(_, newRaw map[string]any) {
+						newRaw[field] = ""
+					},
+				},
+				{
+					name: "added",
+					change: func(oldRaw, _ map[string]any) {
+						oldRaw[field] = ""
+					},
+				},
+				{
+					name: "both empty", wantRebind: true,
+					change: func(oldRaw, newRaw map[string]any) {
+						oldRaw[field], newRaw[field] = "", ""
+					},
+				},
+				{
+					name: "missing stored attribute",
+					change: func(oldRaw, newRaw map[string]any) {
+						delete(oldRaw, field)
+						newRaw[field] = ""
+					},
+				},
+			} {
+				t.Run(provider.name+"/"+field+"/"+tc.name, func(t *testing.T) {
+					oldRaw, err := provider.oldUser.GetRaw()
+					require.NoError(t, err)
+					newRaw, err := provider.oldUser.GetRaw()
+					require.NoError(t, err)
+					for key, value := range provider.newAttrs {
+						newRaw[key] = value
+					}
+					if tc.change != nil {
+						tc.change(oldRaw, newRaw)
+					}
+					newUser, err := provider.source.CreateUserFromRaw(newRaw)
+					require.NoError(t, err)
+					storedUser := bannedUser(internalyt.YtsaurusUser{Username: "alice", SourceRaw: oldRaw}, time.Now())
+					ytsaurus := &rebindingYtsaurus{metricsYtsaurus: metricsYtsaurus{users: []internalyt.YtsaurusUser{storedUser}}}
+					application := newRebindingTestApp(t, true)
+					application.source = &rebindingSource{Source: provider.source, users: []source.SourceUser{newUser}}
+					application.ytsaurus = ytsaurus
+					result, err := application.syncUsers()
+					if !tc.wantRebind {
+						require.ErrorContains(t, err, field+" is missing or does not match")
+						require.Nil(t, result)
+						require.Empty(t, ytsaurus.updates)
+						require.Equal(t, []internalyt.YtsaurusUser{storedUser}, ytsaurus.users)
+						require.Empty(t, application.metrics.(*recordingMetrics).ytMutationSuccess)
+						require.Empty(t, application.metrics.(*recordingMetrics).ytMutationErrors)
+						return
+					}
+					require.NoError(t, err)
+					wantUser := internalyt.YtsaurusUser{Username: "alice", SourceRaw: newRaw}
+					require.Equal(t, []UpdatedYtsaurusUser{{OldUsername: "alice", YtsaurusUser: wantUser}}, ytsaurus.updates)
+					require.Equal(t, map[source.ObjectID]internalyt.YtsaurusUser{newUser.GetID(): wantUser}, result)
+				})
+			}
+		}
+	}
+}
+
 func TestUserIDRebindingCreatesUnmatchedUser(t *testing.T) {
-	application := newRebindingTestApp(t, &config.AzureConfig{AllowUserIDRebinding: true})
+	application := newRebindingTestApp(t, true)
 	diff, err := application.diffUsers(sourceUsers(bobSource), []internalyt.YtsaurusUser{aliceYT})
 	require.NoError(t, err)
 	require.Equal(t, []internalyt.YtsaurusUser{bobYT}, diff.create)
@@ -147,7 +264,7 @@ func TestUserIDRebindingRejectsAmbiguityBeforeMutations(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			application := newRebindingTestApp(t, &config.AzureConfig{AllowUserIDRebinding: true})
+			application := newRebindingTestApp(t, true)
 			application.source = &fakeSource{users: tc.users}
 			application.ytsaurus = &metricsYtsaurus{users: tc.ytUsers}
 			_, err := application.syncUsers()
@@ -184,8 +301,9 @@ func TestSyncUserIDRebinding(t *testing.T) {
 			name = "retry failed update"
 		}
 		t.Run(name, func(t *testing.T) {
-			application := newRebindingTestApp(t, &config.AzureConfig{AllowUserIDRebinding: true})
-			newAlice := fakeUser{ID: "new-alice-id", Name: aliceSource.Name}
+			application := newRebindingTestApp(t, true)
+			newAlice := aliceSource
+			newAlice.ID = "new-alice-id"
 			oldUser := bannedUser(aliceYT, time.Now().Add(-48*time.Hour))
 			ytsaurus := &rebindingYtsaurus{metricsYtsaurus: metricsYtsaurus{users: []internalyt.YtsaurusUser{oldUser}}}
 			application.source = &fakeSource{users: sourceUsers(newAlice)}

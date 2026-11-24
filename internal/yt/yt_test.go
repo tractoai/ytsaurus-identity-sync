@@ -187,7 +187,7 @@ func TestUpdateGroup(t *testing.T) {
 	require.NoError(t, err)
 	var fetchedGroup YtsaurusGroup
 	for _, group := range allGroups {
-		if group.YtsaurusGroup.Name == initialName {
+		if group.Name == initialName {
 			fetchedGroup = group.YtsaurusGroup
 			break
 		}
@@ -204,10 +204,10 @@ func TestUpdateGroup(t *testing.T) {
 	require.NoError(t, err)
 	fetchedGroup = YtsaurusGroup{}
 	for _, group := range allGroups {
-		if group.YtsaurusGroup.Name == initialName {
+		if group.Name == initialName {
 			t.Fatalf("%s group should be renamed", initialName)
 		}
-		if group.YtsaurusGroup.Name == updatedName {
+		if group.Name == updatedName {
 			fetchedGroup = group.YtsaurusGroup
 		}
 	}

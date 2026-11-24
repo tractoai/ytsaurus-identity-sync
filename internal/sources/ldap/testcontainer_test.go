@@ -21,7 +21,8 @@ const (
 	openLDAPAdminPassword = "adminpassword"
 	// openLDAPAdminPasswordHash is an SSHA hash of "adminpassword". Generate an equivalent hash
 	// (SSHA uses a random salt, so the value will differ) with:
-	// docker run --rm osixia/openldap:2.6.10-alpha run -- slappasswd -s adminpassword
+	//
+	//	docker run --rm osixia/openldap:2.6.10-alpha run -- slappasswd -s adminpassword
 	openLDAPAdminPasswordHash = "{SSHA}uP0zxTVhTcxTcOlmwuuEeGtlBZJD2vZ5"
 )
 
@@ -54,7 +55,7 @@ func (y *OpenLdapLocal) Start() error {
 					"-w", openLDAPAdminPassword,
 				}),
 			).
-				WithStartupTimeout(2 * time.Minute),
+				WithDeadline(2 * time.Minute),
 		},
 		Started: true,
 	})

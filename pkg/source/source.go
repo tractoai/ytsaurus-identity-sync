@@ -1,6 +1,6 @@
 package source
 
-import "github.com/deckarep/golang-set/v2"
+import mapset "github.com/deckarep/golang-set/v2"
 
 type ObjectID = string
 

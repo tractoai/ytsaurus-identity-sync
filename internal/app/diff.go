@@ -348,7 +348,7 @@ func (a *App) diffGroups(
 			return nil, errors.Wrap(err, "failed to check if group is changed")
 		}
 		// Group name can change after update, so we ensure that correct one is used for membership updates.
-		actualGroupname := ytGroupWithMembers.YtsaurusGroup.Name
+		actualGroupname := ytGroupWithMembers.Name
 		if groupChanged {
 			// This shouldn't happen until we add more fields in YTsaurus' group source attribute.
 			a.logger.Warnw(
@@ -362,7 +362,7 @@ func (a *App) diffGroups(
 				"updated_group", updatedYtGroup,
 			)
 			groupsToUpdate = append(groupsToUpdate, updatedYtGroup)
-			actualGroupname = updatedYtGroup.YtsaurusGroup.Name
+			actualGroupname = updatedYtGroup.Name
 		}
 
 		membersCreate, membersRemove := a.isGroupMembersChanged(sourceGroupWithMembers, ytGroupWithMembers, usersMap)
@@ -519,7 +519,7 @@ func (a *App) buildUsername(sourceUser source.SourceUser) string {
 	username := sourceUser.GetName()
 	if a.usernameReplaces != nil {
 		for _, replace := range a.usernameReplaces {
-			username = strings.Replace(username, replace.From, replace.To, -1)
+			username = strings.ReplaceAll(username, replace.From, replace.To)
 		}
 	}
 	username = strings.ToLower(username)
@@ -530,7 +530,7 @@ func (a *App) buildGroupName(sourceGroup source.SourceGroup) string {
 	name := sourceGroup.GetName()
 	if a.groupnameReplaces != nil {
 		for _, replace := range a.groupnameReplaces {
-			name = strings.Replace(name, replace.From, replace.To, -1)
+			name = strings.ReplaceAll(name, replace.From, replace.To)
 		}
 	}
 	name = strings.ToLower(name)
@@ -606,7 +606,7 @@ func (a *App) isUserChanged(newYtUser internalyt.YtsaurusUser, ytUser internalyt
 	if err != nil {
 		return false, UpdatedYtsaurusUser{}, err
 	}
-	if newYtUser.Username == ytUser.Username && bytes.Equal(newSourceRaw, oldSourceRaw) && newYtUser.BannedSince == ytUser.BannedSince {
+	if newYtUser.Username == ytUser.Username && bytes.Equal(newSourceRaw, oldSourceRaw) && newYtUser.BannedSince.Equal(ytUser.BannedSince) {
 		return false, UpdatedYtsaurusUser{}, nil
 	}
 	return true, UpdatedYtsaurusUser{YtsaurusUser: newYtUser, OldUsername: ytUser.Username}, nil

@@ -39,7 +39,7 @@ monitoring:
     rules:
       - alert: IdentitySyncLastCompletedSyncTooOld
         expr: time() - ytsaurus_identity_sync_last_completed_timestamp_seconds > 3600
-        for: 15m
+        for: 30m
         labels:
           severity: critical
         annotations:
@@ -47,12 +47,14 @@ monitoring:
           description: No YTsaurus identity synchronization has completed successfully or partially during the last hour.
       - alert: IdentitySyncMutationErrors
         expr: ytsaurus_identity_sync_yt_mutation_errors{object_type=~"user|group|membership"} > 0
+        for: 60m
         labels:
           severity: warning
         annotations:
           summary: YTsaurus identity synchronization mutations failed during the last iteration
           description: '{{ printf "%.0f" $value }} objects of type {{ $labels.object_type }} could not be synchronized during the last iteration (operation={{ $labels.operation }}).'
       - alert: IdentitySyncRemoveLimitExceeded
+        for: 60m
         # The counter series appears on the first failure, so also detect its first appearance.
         expr: |
           increase(ytsaurus_identity_sync_remove_limit_exceeded_total{object_type=~"user|group"}[15m]) > 0

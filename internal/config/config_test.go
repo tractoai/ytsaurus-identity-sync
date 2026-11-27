@@ -107,3 +107,23 @@ func TestServerListenDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ":9090", cfg.App.Server.Listen)
 }
+
+func TestUserIDRebinding(t *testing.T) {
+	for _, provider := range []string{"azure", "ldap"} {
+		for _, tc := range []struct {
+			name string
+			yaml string
+			want bool
+		}{
+			{name: "default", yaml: "app: {}"},
+			{name: "disabled", yaml: "app:\n  allow_user_id_rebinding: false"},
+			{name: "enabled", yaml: "app:\n  allow_user_id_rebinding: true", want: true},
+		} {
+			t.Run(provider+"/"+tc.name, func(t *testing.T) {
+				cfg, err := unmarshal([]byte(tc.yaml + "\n" + provider + ": {}"))
+				require.NoError(t, err)
+				require.Equal(t, tc.want, cfg.App.AllowUserIDRebinding)
+			})
+		}
+	}
+}

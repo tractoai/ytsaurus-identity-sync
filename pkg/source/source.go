@@ -16,6 +16,10 @@ type SourceUser interface {
 	GetID() ObjectID
 	GetName() string
 	GetRaw() (map[string]any, error)
+	// GetRebindingAttributes returns profile attributes that must match before rebinding
+	// a new ID. Keys must match GetRaw, and values are compared exactly with stored strings.
+	// Exclude the ID and username: the app handles those separately.
+	GetRebindingAttributes() map[string]string
 }
 
 type SourceGroup interface {

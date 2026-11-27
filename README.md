@@ -12,6 +12,44 @@ helm upgrade --install --wait \
 Examples for helm values can be found in the [examples](examples) directory.  
 All configuration options for app can be found in [internal/config/config.go](internal/config/config.go) file.
 
+## User ID rebinding
+
+When a source user is recreated with the same login and a new ID, the default behavior
+is to ban/remove the old YTsaurus user and create a new one. Creation fails while the
+old user still occupies the name during `app.ban_before_remove_duration`.
+
+To reuse the existing managed YTsaurus user, enable this option in the application
+configuration (inside `syncConfig` when using Helm):
+
+```yaml
+app:
+  allow_user_id_rebinding: true
+```
+
+This option defaults to `false` and applies to all supported identity providers
+(Azure and LDAP).
+Matching uses the YTsaurus username after `app.username_replacements` and lowercasing.
+Each provider supplies the profile attributes to compare:
+
+- Azure: `first_name`, `last_name`, and `email`.
+- LDAP: `first_name`, the profile field currently fetched by the LDAP provider.
+
+These attributes must match the stored source attributes exactly, including case
+and whitespace. Each attribute must be present as a string; equal empty strings
+are allowed. A missing or mismatched profile field stops user synchronization
+before any mutations. These checks apply only when rebinding a new source ID;
+profile changes for an existing ID sync normally.
+
+The previous source ID must be absent from the current filtered user list, and the
+new ID must not already be linked to a YTsaurus user. Ambiguous usernames or IDs
+stop user synchronization before any mutations. Manually managed users are not rebound.
+
+Rebinding updates the source attributes and clears the ban through the normal user
+update operation. It preserves the YTsaurus object ID and existing permissions;
+group memberships are then reconciled with the identity provider using the new ID.
+Enable it only when a recreated identity should retain the existing user's access.
+It honors `ytsaurus.apply_user_changes` and is counted as a user update in metrics.
+
 
 ## Official release
 To issue an official release of app — create new release at the [releases](https://github.com/tractoai/ytsaurus-identity-sync/releases) tab with some release notes.  

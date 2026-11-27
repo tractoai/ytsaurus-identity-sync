@@ -18,6 +18,7 @@ var (
 		Name:      "alice@acme.com",
 		Email:     "alice@acme.com",
 		FirstName: "Alice",
+		LastName:  "Smith",
 	}
 	bobSource = fakeUser{
 		ID:        "source-id-bob",
@@ -36,6 +37,7 @@ var (
 		Name:      aliceSource.Name,
 		Email:     aliceSource.Email,
 		FirstName: "Alice-updated",
+		LastName:  aliceSource.LastName,
 	}
 	bobSourceChanged = fakeUser{
 		ID:        bobSource.ID,

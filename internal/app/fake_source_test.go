@@ -30,6 +30,7 @@ func (f *fakeSource) CreateUserFromRaw(raw map[string]any) (source.SourceUser, e
 		Name:      name,
 		Email:     stringValue(raw, "email"),
 		FirstName: stringValue(raw, "first_name"),
+		LastName:  stringValue(raw, "last_name"),
 	}, nil
 }
 
@@ -47,6 +48,7 @@ type fakeUser struct {
 	Name      string
 	Email     string
 	FirstName string
+	LastName  string
 }
 
 func (u fakeUser) GetID() source.ObjectID {
@@ -57,12 +59,21 @@ func (u fakeUser) GetName() string {
 	return u.Name
 }
 
+func (u fakeUser) GetRebindingAttributes() map[string]string {
+	return map[string]string{
+		"first_name": u.FirstName,
+		"last_name":  u.LastName,
+		"email":      u.Email,
+	}
+}
+
 func (u fakeUser) GetRaw() (map[string]any, error) {
 	return map[string]any{
 		"id":         u.ID,
 		"name":       u.Name,
 		"email":      u.Email,
 		"first_name": u.FirstName,
+		"last_name":  u.LastName,
 	}, nil
 }
 

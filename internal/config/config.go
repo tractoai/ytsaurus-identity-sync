@@ -37,6 +37,13 @@ type AppConfig struct {
 	// BanBeforeRemoveDuration is a duration of a graceful ban before finally removing the user from YTsaurus.
 	// If it is not specified, user will be removed straight after user was found to be missing from source (Azure or Ldap).
 	BanBeforeRemoveDuration time.Duration `yaml:"ban_before_remove_duration"`
+
+	// AllowUserIDRebinding reuses a managed YTsaurus user when a new source ID has the same
+	// normalized username and matching provider profile attributes, and the previous ID
+	// is absent from the filtered source users. Profile fields must match exactly.
+	// This preserves the YTsaurus object and its permissions, and clears its ban.
+	// Disabled by default. Ambiguous usernames or IDs, or profile mismatches, fail user sync before mutations.
+	AllowUserIDRebinding bool `yaml:"allow_user_id_rebinding"`
 }
 
 type ServerConfig struct {

@@ -34,6 +34,10 @@ func (lu LdapUser) GetName() string {
 	return lu.Username
 }
 
+func (lu LdapUser) GetRebindingAttributes() map[string]string {
+	return map[string]string{"first_name": lu.FirstName}
+}
+
 func (lu LdapUser) GetRaw() (map[string]any, error) {
 	bytes, err := yson.Marshal(lu)
 	if err != nil {

@@ -1,0 +1,150 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/tractoai/ytsaurus-identity-sync
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "2024-04-19-569ba16"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: false
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 9090
+
+monitoring:
+  serviceMonitor:
+    enabled: false
+    additionalLabels: {}
+  prometheusRules:
+    enabled: false
+    # Additional labels for the PrometheusRule resource.
+    additionalLabels: {}
+    # Labels added to every alert. Per-alert labels take precedence.
+    additionalAlertLabels: {}
+    # Alert names are prefixed with the capitalized yt.clusterName.
+    rules:
+      - alert: IdentitySyncLastCompletedSyncTooOld
+        expr: time() - ytsaurus_identity_sync_last_completed_timestamp_seconds > 3600
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: YTsaurus identity synchronization has not completed for more than an hour
+          description: No YTsaurus identity synchronization has completed successfully or partially during the last hour.
+      - alert: IdentitySyncMutationErrors
+        expr: ytsaurus_identity_sync_yt_mutation_errors{object_type=~"user|group|membership"} > 0
+        for: 60m
+        labels:
+          severity: warning
+        annotations:
+          summary: YTsaurus identity synchronization mutations failed during the last iteration
+          description: '{{ printf "%.0f" $value }} objects of type {{ $labels.object_type }} could not be synchronized during the last iteration (operation={{ $labels.operation }}).'
+      - alert: IdentitySyncRemoveLimitExceeded
+        for: 60m
+        # The counter series appears on the first failure, so also detect its first appearance.
+        expr: |
+          increase(ytsaurus_identity_sync_remove_limit_exceeded_total{object_type=~"user|group"}[15m]) > 0
+          or
+          (
+            ytsaurus_identity_sync_remove_limit_exceeded_total{object_type=~"user|group"} > 0
+            unless
+            ytsaurus_identity_sync_remove_limit_exceeded_total{object_type=~"user|group"} offset 15m
+          )
+        labels:
+          severity: warning
+        annotations:
+          summary: YTsaurus identity synchronization stopped by the removal limit
+          description: 'The removal limit was reached for objects of type {{ $labels.object_type }}. Synchronization stopped before applying changes for this object type. Check source data and the configured removal limit.'
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+yt:
+  clusterName: ytsaurus
+  proxy: yt-proxy.company.com
+  token: "yt-secret-token"
+
+# NB: 'ldap' and 'azure' are supported
+syncSource: azure
+
+ldap:
+  password: "not-here"
+
+azure:
+  clientSecret: "not-here"
+
+# not recommended for production environment
+plainSecrets:
+  enabled: false
+
+externalSecrets:
+  enabled: false
+
+  secretStore:
+    kind: SecretStore
+    name: ""
+  ytsaurusSecretID: ""
+  sourceSecretID: ""
+
+sealedSecrets:
+  enabled: false
+  spec: {}
+
+syncConfig: |-
+  # NB: Place your complete raw identity-sync config here

@@ -1,0 +1,25 @@
+{{- if .Values.monitoring.prometheusRules.enabled }}
+{{- $rules := deepCopy .Values.monitoring.prometheusRules.rules }}
+{{- range $rules }}
+{{- if hasKey . "alert" }}
+{{- $_ := set . "alert" (printf "%s%s" ($.Values.yt.clusterName | title) .alert) }}
+{{- if $.Values.monitoring.prometheusRules.additionalAlertLabels }}
+{{- $_ := set . "labels" (mergeOverwrite (deepCopy $.Values.monitoring.prometheusRules.additionalAlertLabels) (.labels | default dict)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "ytsaurus-identity-sync.fullname" . }}
+  labels:
+    {{- include "ytsaurus-identity-sync.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.prometheusRules.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ include "ytsaurus-identity-sync.fullname" . }}
+      rules:
+        {{- toYaml $rules | nindent 8 }}
+{{- end }}

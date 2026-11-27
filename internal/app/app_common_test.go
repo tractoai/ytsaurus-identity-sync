@@ -31,9 +31,10 @@ const (
 )
 
 type testCase struct {
-	name      string
-	appConfig *config.AppConfig
-	testTime  time.Time
+	name          string
+	appConfig     *config.AppConfig
+	testTime      time.Time
+	expectedError string
 
 	sourceUsersSetUp []source.SourceUser
 	ytUsersSetUp     []internalyt.YtsaurusUser
@@ -224,31 +225,32 @@ func (suite *AppTestSuite) clear() {
 	suite.restartYtsaurusIfNeeded()
 }
 
-func (suite *AppTestSuite) syncOnce(t *testing.T, source source.Source, clock clock.PassiveClock, appConfig *config.AppConfig) {
+func (suite *AppTestSuite) syncOnce(t *testing.T, source source.Source, clock clock.PassiveClock, appConfig *config.AppConfig) error {
 	if appConfig == nil {
 		appConfig = defaultAppConfig
 	}
 
 	proxy, err := suite.ytsaurusLocal.GetProxy(suite.ctx)
 	require.NoError(t, err)
-	app, err := NewAppCustomized(
-		&config.Config{
-			App: *appConfig,
-			Ytsaurus: config.YtsaurusConfig{
-				Proxy:               proxy,
-				ApplyUserChanges:    true,
-				ApplyGroupChanges:   true,
-				ApplyMemberChanges:  true,
-				LogLevel:            "DEBUG",
-				SourceAttributeName: testSourceAttribute,
-			},
-		}, logging.NewDevelopment(),
-		source,
-		clock,
-	)
+	logger := logging.NewDevelopment()
+	ytsaurus, err := internalyt.NewYtsaurus(&config.YtsaurusConfig{
+		Proxy:               proxy,
+		ApplyUserChanges:    true,
+		ApplyGroupChanges:   true,
+		ApplyMemberChanges:  true,
+		LogLevel:            "DEBUG",
+		SourceAttributeName: testSourceAttribute,
+	}, logger, clock)
 	require.NoError(t, err)
+	app := NewApp(
+		&config.Config{App: *appConfig},
+		logger,
+		source,
+		ytsaurus,
+		nil,
+	)
 
-	app.syncOnce()
+	return app.syncOnce()
 }
 
 func (suite *AppTestSuite) check(t *testing.T, expectedUsers []internalyt.YtsaurusUser, expectedGroups []internalyt.YtsaurusGroupWithMembers) {

@@ -5,11 +5,17 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/app"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/config"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/logging"
+	internalmetrics "github.com/tractoai/ytsaurus-identity-sync/internal/metrics"
+	"github.com/tractoai/ytsaurus-identity-sync/internal/server"
 	"github.com/tractoai/ytsaurus-identity-sync/internal/sources"
+	internalyt "github.com/tractoai/ytsaurus-identity-sync/internal/yt"
 	"go.uber.org/zap"
+	"k8s.io/utils/clock"
 )
 
 var options struct {
@@ -55,12 +61,25 @@ func run(configFilePath string) error {
 		return err
 	}
 
-	application, err := app.NewApp(cfg, logger, src)
+	ytsaurus, err := internalyt.NewYtsaurus(&cfg.Ytsaurus, logger, clock.RealClock{})
 	if err != nil {
 		return err
 	}
+	metricsRegistry := prometheus.NewRegistry()
+	metricsRegistry.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+	appMetrics := internalmetrics.New(metricsRegistry)
+	application := app.NewApp(cfg, logger, src, ytsaurus, appMetrics)
 
 	defer application.Stop()
+	healthServer := server.New(logger, &cfg.App.Server, application, metricsRegistry)
+	if err := healthServer.Start(); err != nil {
+		return err
+	}
+	defer healthServer.Stop()
+
 	application.Start()
 
 	logger.Info("Application stopped")
